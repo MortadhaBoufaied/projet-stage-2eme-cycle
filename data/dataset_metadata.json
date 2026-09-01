@@ -1,0 +1,13 @@
+{
+  "forecasting_dataset": {
+    "dataset_name": "Synthetic retail demand",
+    "total_records": 72000,
+    "synthetic": true
+  },
+  "credit_dataset": {
+    "dataset_name": "Synthetic credit risk",
+    "total_records": 30000,
+    "default_rate": 0.5480333333333334,
+    "synthetic": true
+  }
+}

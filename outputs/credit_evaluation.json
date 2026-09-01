@@ -1,0 +1,42 @@
+{
+  "agent": "Payment Risk Assessment Agent",
+  "split": "Random Holdout Train (80%) / Test (20%)",
+  "baseline_logistic_regression": {
+    "ROC_AUC": 0.8147,
+    "PR_AUC": 0.8459,
+    "Accuracy": 0.7388,
+    "F1_Score": 0.7564,
+    "Precision": 0.7751,
+    "Recall": 0.7386,
+    "Confusion_Matrix": [
+      [
+        2000,
+        706
+      ],
+      [
+        861,
+        2433
+      ]
+    ],
+    "n_test": 6000
+  },
+  "boosted_model": {
+    "ROC_AUC": 0.8481,
+    "PR_AUC": 0.8747,
+    "Accuracy": 0.7748,
+    "F1_Score": 0.792,
+    "Precision": 0.8035,
+    "Recall": 0.7808,
+    "Confusion_Matrix": [
+      [
+        2077,
+        629
+      ],
+      [
+        722,
+        2572
+      ]
+    ],
+    "n_test": 6000
+  }
+}

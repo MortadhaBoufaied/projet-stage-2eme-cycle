@@ -1,0 +1,802 @@
+=== C:\Users\boufa\Downloads\finance-stage\src\agents\credit_agent.py ===
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, average_precision_score, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+from src.config import RANDOM_STATE
+from src.services.schema import CREDIT_FEATURES, CREDIT_TARGET
+
+
+class CreditRiskAgent:
+    def __init__(self, model_type="boosted", review_threshold=0.50, high_risk_threshold=0.60):
+        if model_type not in {"baseline", "boosted"}:
+            raise ValueError("model_type must be baseline or boosted")
+        if not 0 < review_threshold <= high_risk_threshold < 1:
+            raise ValueError("Thresholds must satisfy 0 < review <= high < 1")
+        self.model_type = model_type
+        self.review_threshold = float(review_threshold)
+        self.high_risk_threshold = float(high_risk_threshold)
+        self.model = None
+        self.feature_names = []
+        self.reference_medians = {}
+
+    @staticmethod
+    def _engineer(df):
+        data = df.copy()
+        bills = [f"BILL_AMT{i}" for i in range(1, 7)]
+        payments = [f"PAY_AMT{i}" for i in range(1, 7)]
+        delays = [f"PAY_{i}" for i in range(7)]
+        for column in ["LIMIT_BAL", "AGE", "EDUCATION", "MARRIAGE", *bills, *payments, *delays]:
+            data[column] = pd.to_numeric(data[column], errors="coerce")
+        limit = data["LIMIT_BAL"].abs().replace(0, np.nan)
+        bill1 = data["BILL_AMT1"].abs().replace(0, np.nan)
+        bill_total = data[bills].abs().sum(axis=1).replace(0, np.nan)
+        data["utilization_ratio_1"] = data["BILL_AMT1"] / limit
+        data["utilization_ratio_mean"] = data[bills].mean(axis=1) / limit
+        data["pay_ratio_1"] = data["PAY_AMT1"] / bill1
+        data["pay_ratio_mean"] = data[payments].sum(axis=1) / bill_total
+        data["delay_months_max"] = data[delays].max(axis=1)
+        data["delay_count"] = (data[delays] > 0).sum(axis=1)
+        data["is_young"] = (data["AGE"] < 30).astype(int)
+        data["is_grad_school"] = (data["EDUCATION"] == 1).astype(int)
+        data["is_married"] = (data["MARRIAGE"] == 1).astype(int)
+        return data.replace([np.inf, -np.inf], np.nan)
+
+    def fit(self, train_df):
+        data = self._engineer(train_df)
+        engineered = ["utilization_ratio_1", "utilization_ratio_mean", "pay_ratio_1", "pay_ratio_mean", "delay_months_max", "delay_count", "is_young", "is_grad_school", "is_married"]
+        self.feature_names = [*CREDIT_FEATURES, *engineered]
+        x = data[self.feature_names]
+        y = pd.to_numeric(data[CREDIT_TARGET], errors="raise").astype(int)
+        self.reference_medians = x.median(numeric_only=True).fillna(0).to_dict()
+        steps = [("imputer", SimpleImputer(strategy="median"))]
+        if self.model_type == "baseline":
+            steps += [("scaler", StandardScaler()), ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=RANDOM_STATE))]
+        else:
+            steps += [("model", HistGradientBoostingClassifier(max_iter=300, learning_rate=.04, max_depth=6, random_state=RANDOM_STATE))]
+        self.model = Pipeline(steps).fit(x, y)
+        return self
+
+    def predict_proba(self, df):
+        if self.model is None:
+            raise RuntimeError("Credit model is not fitted")
+        return self.model.predict_proba(self._engineer(df)[self.feature_names])[:, 1]
+
+    def predict_risk(self, df):
+        probabilities = self.predict_proba(df)
+        tiers = np.where(probabilities < self.review_threshold, "LOW_RISK", np.where(probabilities < self.high_risk_threshold, "MEDIUM_RISK", "HIGH_RISK"))
+        return probabilities, tiers.tolist()
+
+    def evaluate(self, test_df):
+        y = pd.to_numeric(test_df[CREDIT_TARGET], errors="raise").astype(int).to_numpy()
+        probabilities = self.predict_proba(test_df)
+        prediction = (probabilities >= self.review_threshold).astype(int)
+        return {"ROC_AUC": round(float(roc_auc_score(y, probabilities)), 4), "PR_AUC": round(float(average_precision_score(y, probabilities)), 4), "Accuracy": round(float(accuracy_score(y, prediction)), 4), "F1_Score": round(float(f1_score(y, prediction, zero_division=0)), 4), "Precision": round(float(precision_score(y, prediction, zero_division=0)), 4), "Recall": round(float(recall_score(y, prediction, zero_division=0)), 4), "Confusion_Matrix": confusion_matrix(y, prediction).tolist(), "n_test": len(y)}
+
+    def explain(self, df, top_k=5):
+        data = self._engineer(df)
+        probabilities, tiers = self.predict_risk(df)
+        output = []
+        for position, (_, row) in enumerate(data.iterrows()):
+            indicators = []
+            for feature in self.feature_names:
+                value = float(row[feature]) if pd.notna(row[feature]) else 0.0
+                median = float(self.reference_medians.get(feature, 0.0))
+                indicators.append((abs(value - median), {"feature": feature, "feature_value": value, "relative_position": "Above training median" if value > median else "At or below training median"}))
+            indicators.sort(key=lambda item: item[0], reverse=True)
+            output.append({"client_id": str(df.iloc[position].get("client_id", position)), "risk_score": round(float(probabilities[position]), 4), "risk_tier": tiers[position], "unusual_indicators": [item[1] for item in indicators[:top_k]]})
+        return output
+
+    def explain_client_risk(self, client_df, top_k=5):
+        return self.explain(client_df, top_k)
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\agents\forecast_agent.py ===
+from __future__ import annotations
+import numpy as np, pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import Ridge
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from src.config import RANDOM_STATE
+
+class CashflowForecastAgent:
+    cat_cols=["category","region","weather_conditions","store_id","product_id"]
+    def __init__(self, model_type="boosted"):
+        self.model_type=model_type; self.model=None; self.feature_names=[]
+    def create_features(self, df):
+        d=df.copy(); d["date"]=pd.to_datetime(d["date"],errors="coerce"); d=d.sort_values(["store_id","product_id","date"]).copy()
+        d["day_of_week"]=d.date.dt.dayofweek; d["month"]=d.date.dt.month; d["day_of_year"]=d.date.dt.dayofyear; d["is_weekend"]=(d.day_of_week>=5).astype(int)
+        g=d.groupby(["store_id","product_id"],sort=False)["units_sold"]
+        for lag in [1,7,14,30]: d[f"lag_{lag}"]=g.shift(lag)
+        for win in [7,14,30]:
+            d[f"roll_mean_{win}"]=g.transform(lambda s:s.shift(1).rolling(win,min_periods=1).mean())
+            d[f"roll_std_{win}"]=g.transform(lambda s:s.shift(1).rolling(win,min_periods=2).std())
+        return d
+    def fit(self, featured_train_df):
+        d=featured_train_df.copy()
+        self.feature_names=self.cat_cols+["inventory_level","promotions_holidays","day_of_week","month","day_of_year","is_weekend"]+[c for c in d.columns if c.startswith("lag_") or c.startswith("roll_")]
+        X=d[self.feature_names]; y=d["units_sold"].astype(float)
+        numeric=[c for c in self.feature_names if c not in self.cat_cols]
+        pre=ColumnTransformer([("cat",Pipeline([("imp",SimpleImputer(strategy="most_frequent")),("oh",OneHotEncoder(handle_unknown="ignore"))]),self.cat_cols),("num",Pipeline([("imp",SimpleImputer(strategy="median")),("scale",StandardScaler(with_mean=False))]),numeric)])
+        model=Ridge(alpha=1.0) if self.model_type=="baseline" else HistGradientBoostingRegressor(max_iter=300,learning_rate=.04,max_depth=7,random_state=RANDOM_STATE)
+        if self.model_type=="boosted":
+            pre=ColumnTransformer([("cat",Pipeline([("imp",SimpleImputer(strategy="most_frequent")),("oh",OneHotEncoder(handle_unknown="ignore",sparse_output=False))]),self.cat_cols),("num",SimpleImputer(strategy="median"),numeric)])
+        self.model=Pipeline([("pre",pre),("model",model)]).fit(X,y); return self
+    def predict_featured(self, featured_df): return np.clip(self.model.predict(featured_df[self.feature_names]),0,None)
+    def evaluate_featured(self, featured_test_df):
+        y=featured_test_df["units_sold"].astype(float).to_numpy(); p=self.predict_featured(featured_test_df)
+        mae=float(mean_absolute_error(y,p)); rmse=float(mean_squared_error(y,p)**.5); denom=float(np.abs(y).sum())
+        return {"MAE":round(mae,4),"RMSE":round(rmse,4),"WAPE":round(float(np.abs(y-p).sum()/denom),4) if denom else None,"R2":round(float(r2_score(y,p)),4),"n_test":int(len(y))}
+    def predict_historical(self, df):
+        f=self.create_features(df); f["forecast_units_sold"]=np.round(self.predict_featured(f),2); return f
+    def detect_anomalies(self, df):
+        r=self.predict_historical(df); r["residual"]=r["units_sold"]-r["forecast_units_sold"]; scale=max(float(r.residual.std()),1e-6)
+        r["is_anomaly"]=(r.residual.abs()>2*scale).astype(int); r["is_stockout_risk"]=(r.inventory_level<2*r.forecast_units_sold).astype(int); return r
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\agents\recommender.py ===
+class RecommendationEngine:
+    def credit(self, item):
+        tier=item["risk_tier"]
+        actions={"HIGH_RISK":["Request manual credit review.","Reduce exposure and tighten payment terms.","Increase collection monitoring."],"MEDIUM_RISK":["Send early reminders.","Monitor repayment behavior monthly.","Consider an early-payment incentive."],"LOW_RISK":["Maintain standard controls.","Consider normal commercial terms."]}[tier]
+        return {"risk_tier":tier,"risk_score":item["risk_score"],"recommended_actions":actions,"note":"Decision support only. A responsible employee should review the recommendation."}
+    def forecast(self, row):
+        actions=[]
+        if int(row.get("is_stockout_risk",0)): actions.append("Review replenishment and safety-stock levels.")
+        if int(row.get("is_anomaly",0)): actions.append("Investigate the demand deviation, promotion, weather, pricing, and data quality.")
+        return actions or ["No exceptional action detected."]
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\agents\__init__.py ===
+
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\data_generator\credit_generator.py ===
+import numpy as np
+import pandas as pd
+
+
+def generate_credit_default_data(num_clients=1000, random_seed=42):
+    rng = np.random.default_rng(random_seed)
+    data = {"client_id": [f"CLI_{i+1:06d}" for i in range(num_clients)], "LIMIT_BAL": rng.integers(10000, 500000, num_clients), "AGE": rng.integers(21, 76, num_clients), "EDUCATION": rng.integers(1, 5, num_clients), "MARRIAGE": rng.integers(1, 4, num_clients)}
+    for i in range(7):
+        data[f"PAY_{i}"] = rng.integers(-2, 5, num_clients)
+    for i in range(1, 7):
+        utilization = rng.beta(2, 3, num_clients)
+        data[f"BILL_AMT{i}"] = np.round(data["LIMIT_BAL"] * utilization, -2)
+        data[f"PAY_AMT{i}"] = np.round(data[f"BILL_AMT{i}"] * rng.uniform(0, .7, num_clients), -2)
+    score = 1.2 * (data["PAY_0"] > 1) + .3 * sum((data[f"PAY_{i}"] > 0) for i in range(1, 7)) + rng.normal(0, .7, num_clients)
+    data["default_next_month"] = (score > 1.4).astype(int)
+    frame = pd.DataFrame(data)
+    return frame, {"dataset_name": "Synthetic credit risk", "total_records": len(frame), "default_rate": float(frame["default_next_month"].mean()), "synthetic": True}
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\data_generator\forecasting_generator.py ===
+import numpy as np
+import pandas as pd
+
+
+def generate_retail_forecasting_data(num_stores=2, num_products=2, num_days=120, start_date="2025-01-01", random_seed=42):
+    rng = np.random.default_rng(random_seed)
+    rows = []
+    for s in range(num_stores):
+        for p in range(num_products):
+            for day, date in enumerate(pd.date_range(start_date, periods=num_days)):
+                promo = int(rng.random() < .15)
+                units = max(0, round(100 + 15*np.sin(2*np.pi*day/7) + 20*promo + rng.normal(0, 6)))
+                rows.append({"date": date, "store_id": f"STORE_{s+1:03d}", "product_id": f"PROD_{p+1:03d}", "category": "Grocery", "region": "North", "units_sold": units, "inventory_level": max(0, 500-units), "promotions_holidays": promo, "weather_conditions": "Sunny"})
+    frame = pd.DataFrame(rows)
+    return frame, {"dataset_name": "Synthetic retail demand", "total_records": len(frame), "synthetic": True}
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\data_generator\__init__.py ===
+from .credit_generator import generate_credit_default_data
+from .forecasting_generator import generate_retail_forecasting_data
+
+__all__ = ["generate_credit_default_data", "generate_retail_forecasting_data"]
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\company_profile.py ===
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+
+from src.config import ARTIFACTS_DIR
+from src.services.model_registry import safe_company_id
+
+
+@dataclass
+class CompanyProfile:
+    company_id: str
+    display_name: str = ""
+    currency: str = "TND"
+    language: str = "English"
+    review_threshold: float = 0.50
+    high_risk_threshold: float = 0.60
+    require_human_approval: bool = True
+    recommendation_rules: list[str] = field(default_factory=list)
+    forbidden_actions: list[str] = field(default_factory=list)
+
+    def validate(self):
+        if not 0 < self.review_threshold <= self.high_risk_threshold < 1:
+            raise ValueError("Thresholds must satisfy 0 < review <= high < 1")
+        self.company_id = safe_company_id(self.company_id)
+        return self
+
+
+class CompanyProfileStore:
+    def __init__(self, root: Path = ARTIFACTS_DIR):
+        self.root = Path(root)
+
+    def _path(self, company_id: str) -> Path:
+        return self.root / safe_company_id(company_id) / "company_profile.json"
+
+    def save(self, profile: CompanyProfile) -> Path:
+        profile.validate()
+        path = self._path(profile.company_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(asdict(profile), indent=2, ensure_ascii=False), encoding="utf-8")
+        return path
+
+    def load(self, company_id: str) -> CompanyProfile:
+        path = self._path(company_id)
+        if not path.exists():
+            return CompanyProfile(company_id=safe_company_id(company_id))
+        return CompanyProfile(**json.loads(path.read_text(encoding="utf-8"))).validate()
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\model_registry.py ===
+from __future__ import annotations
+import json,re
+from datetime import datetime,timezone
+from pathlib import Path
+import joblib
+from src.config import ARTIFACTS_DIR
+
+def safe_company_id(value):
+    cleaned=re.sub(r'[^A-Za-z0-9_-]+','_',value.strip())
+    if not cleaned: raise ValueError('Company ID cannot be empty.')
+    return cleaned[:80]
+class ModelRegistry:
+    def __init__(self,root=ARTIFACTS_DIR): self.root=Path(root); self.root.mkdir(parents=True,exist_ok=True)
+    def company_dir(self,company_id,create=False):
+        p=self.root/safe_company_id(company_id)
+        if create: p.mkdir(parents=True,exist_ok=True)
+        return p
+    def save(self,company_id,task,model,metadata):
+        d=self.company_dir(company_id,True)/task; d.mkdir(parents=True,exist_ok=True); stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        model_path=d/f'model_{stamp}.joblib'; joblib.dump(model,model_path)
+        payload={**metadata,'company_id':safe_company_id(company_id),'task':task,'model_file':model_path.name,'version':stamp,'saved_at_utc':stamp}
+        (d/f'metadata_{stamp}.json').write_text(json.dumps(payload,indent=2),encoding='utf-8'); (d/'latest.json').write_text(json.dumps(payload,indent=2),encoding='utf-8'); return model_path
+    def load_latest(self,company_id,task):
+        d=self.company_dir(company_id)/task; p=d/'latest.json'
+        if not p.exists(): raise FileNotFoundError(f'No saved {task} model for {company_id}.')
+        meta=json.loads(p.read_text(encoding='utf-8')); return joblib.load(d/meta['model_file']),meta
+    def versions(self,company_id,task):
+        d=self.company_dir(company_id)/task
+        if not d.exists(): return []
+        return sorted([json.loads(p.read_text(encoding='utf-8')) for p in d.glob('metadata_*.json')],key=lambda x:x['saved_at_utc'],reverse=True)
+    def activate(self,company_id,task,version):
+        d=self.company_dir(company_id)/task; p=d/f'metadata_{version}.json'
+        if not p.exists(): raise FileNotFoundError('Model version not found.')
+        (d/'latest.json').write_text(p.read_text(encoding='utf-8'),encoding='utf-8')
+    def list_companies(self): return sorted([p.name for p in self.root.iterdir() if p.is_dir()])
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\recommendation_policy.py ===
+from __future__ import annotations
+
+from src.services.company_profile import CompanyProfile
+
+
+class RecommendationPolicy:
+    """Applies explicit company rules to model recommendations without retraining."""
+
+    def apply(self, recommendation: dict, profile: CompanyProfile) -> dict:
+        result = dict(recommendation)
+        actions = list(result.get("recommended_actions", result.get("action_plan", [])))
+        blocked = [rule.lower() for rule in profile.forbidden_actions if rule.strip()]
+        actions = [action for action in actions if not any(term in action.lower() for term in blocked)]
+        actions.extend(rule for rule in profile.recommendation_rules if rule.strip() and rule not in actions)
+        result["recommended_actions"] = actions
+        result["company_policy"] = {
+            "currency": profile.currency,
+            "language": profile.language,
+            "human_approval_required": profile.require_human_approval,
+        }
+        result["status"] = "REQUIRES_HUMAN_REVIEW" if profile.require_human_approval else "ADVISORY"
+        return result
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\schema.py ===
+from __future__ import annotations
+from difflib import SequenceMatcher
+import re
+import pandas as pd
+
+CREDIT_FEATURES = ["LIMIT_BAL", "AGE", "EDUCATION", "MARRIAGE"] + [f"PAY_{i}" for i in range(7)] + [f"BILL_AMT{i}" for i in range(1,7)] + [f"PAY_AMT{i}" for i in range(1,7)]
+CREDIT_TARGET = "default_next_month"
+CREDIT_ID = "client_id"
+FORECAST_FIELDS = ["date","store_id","product_id","category","region","units_sold","inventory_level","promotions_holidays","weather_conditions"]
+
+def _norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+def suggest_mapping(columns, required):
+    columns=list(columns); result={}; used=set()
+    for canonical in required:
+        ranked=sorted(((SequenceMatcher(None,_norm(canonical),_norm(c)).ratio(),c) for c in columns if c not in used), reverse=True)
+        choice=ranked[0][1] if ranked and (ranked[0][0] >= .72 or _norm(canonical)==_norm(ranked[0][1])) else ""
+        result[canonical]=choice
+        if choice: used.add(choice)
+    return result
+
+def mapping_errors(mapping):
+    selected=[v for v in mapping.values() if v]
+    duplicates=sorted({v for v in selected if selected.count(v)>1})
+    errors=[]
+    if duplicates: errors.append("One source column cannot map to multiple fields: "+", ".join(duplicates))
+    return errors
+
+def apply_mapping(df: pd.DataFrame, mapping: dict[str,str]) -> pd.DataFrame:
+    return df.rename(columns={source:canonical for canonical,source in mapping.items() if source}).copy()
+
+def validate_credit(df, require_target=True):
+    required=CREDIT_FEATURES+([CREDIT_TARGET] if require_target else [])
+    errors=[f"Missing column: {c}" for c in required if c not in df.columns]
+    if not errors:
+        if require_target and len(df)<30: errors.append("Credit training data requires at least 30 rows.")
+        if require_target:
+            vals=set(pd.to_numeric(df[CREDIT_TARGET],errors='coerce').dropna().unique())
+            if not vals.issubset({0,1}) or len(vals)<2: errors.append("The target must contain both binary classes 0 and 1.")
+        ages=pd.to_numeric(df['AGE'],errors='coerce')
+        if ((ages<18)|(ages>110)).any(): errors.append("AGE contains values outside 18 to 110.")
+        limits=pd.to_numeric(df['LIMIT_BAL'],errors='coerce')
+        if (limits<0).any(): errors.append("LIMIT_BAL cannot be negative.")
+    return errors
+
+def validate_forecast(df, require_target=True):
+    required=FORECAST_FIELDS if require_target else [c for c in FORECAST_FIELDS if c!='units_sold']
+    errors=[f"Missing column: {c}" for c in required if c not in df.columns]
+    if not errors:
+        dates=pd.to_datetime(df['date'],errors='coerce')
+        if dates.isna().any(): errors.append("Some date values are invalid.")
+        if dates.nunique()<10: errors.append("Forecast data requires at least 10 distinct dates.")
+        keys=['date','store_id','product_id']
+        if df.duplicated(keys).any(): errors.append("Duplicate date/store/product records were found.")
+        if require_target and (pd.to_numeric(df['units_sold'],errors='coerce')<0).any(): errors.append("units_sold cannot be negative.")
+    return errors
+
+def quality_report(df):
+    return {
+        'rows':len(df),'columns':len(df.columns),'duplicate_rows':int(df.duplicated().sum()),
+        'missing_cells':int(df.isna().sum().sum()),
+        'missing_percent':round(float(df.isna().mean().mean()*100),2) if len(df.columns) else 0,
+    }
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\training.py ===
+from __future__ import annotations
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from src.agents.credit_agent import CreditRiskAgent
+from src.agents.forecast_agent import CashflowForecastAgent
+from src.config import RANDOM_STATE
+
+def train_credit(df,model_type='boosted',test_size=.2,review_threshold=.5,high_risk_threshold=.6):
+    train,test=train_test_split(df,test_size=test_size,stratify=df['default_next_month'],random_state=RANDOM_STATE)
+    model=CreditRiskAgent(model_type,review_threshold,high_risk_threshold).fit(train); metrics=model.evaluate(test)
+    metrics.update({'split':'stratified random holdout','train_rows':len(train),'test_rows':len(test)}); return model,metrics
+
+def train_forecast(df,model_type='boosted',test_size=.2):
+    featured=CashflowForecastAgent(model_type).create_features(df); dates=np.array(sorted(featured['date'].dropna().unique()))
+    if len(dates)<10: raise ValueError('Forecast training requires at least 10 distinct dates.')
+    cut=dates[max(1,int(len(dates)*(1-test_size)))]; train=featured[featured.date<cut].copy(); test=featured[featured.date>=cut].copy()
+    if train.empty or test.empty: raise ValueError('Chronological split produced an empty partition.')
+    model=CashflowForecastAgent(model_type).fit(train); metrics=model.evaluate_featured(test)
+    metrics.update({'split':'chronological holdout','cutoff_date':str(pd.Timestamp(cut).date()),'train_rows':len(train),'test_rows':len(test)}); return model,metrics
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\services\__init__.py ===
+
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\ui\app.py ===
+from __future__ import annotations
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import pandas as pd
+import streamlit as st
+from src.services.schema import *
+from src.services.training import train_credit, train_forecast
+from src.services.model_registry import ModelRegistry
+from src.agents.recommender import RecommendationEngine
+from src.services.company_profile import CompanyProfileStore
+
+st.set_page_config(page_title="Finance Decision Studio", page_icon="ðŸ“ˆ", layout="wide", initial_sidebar_state="expanded")
+st.markdown("""
+<style>
+:root{--bg:#f2f4f6;--panel:#fbfcfd;--sidebar:#e6eaee;--ink:#17212b;--muted:#667381;--line:#d3d9df;--brand:#315c6d;--brand2:#4f7f82;--good:#267054;--warn:#9a6818;--bad:#a84646}
+html,body,[class*="css"]{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.stApp{background:var(--bg);color:var(--ink)}
+[data-testid="stHeader"]{background:rgba(242,244,246,.94);border-bottom:1px solid var(--line)}
+[data-testid="stSidebar"]{background:var(--sidebar);border-right:1px solid #cbd2d9}
+[data-testid="stSidebar"] .block-container{padding:1.35rem 1.1rem 2rem}
+.block-container{max-width:1420px;padding:2rem 2.25rem 4rem}
+h1{font-size:2rem!important;line-height:1.16!important;letter-spacing:-.035em!important;margin-bottom:.35rem!important}h2{font-size:1.35rem!important;letter-spacing:-.02em!important}h3{font-size:1.05rem!important}.stCaption,p{color:var(--muted)}
+/* Do not style BaseWeb popovers globally. Explicit Streamlit light theme controls menus. */
+[data-testid="stMetric"]{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;box-shadow:0 1px 2px rgba(23,33,43,.025)}
+[data-testid="stMetricLabel"]{font-size:.74rem;text-transform:uppercase;letter-spacing:.055em;color:var(--muted)}
+[data-testid="stMetricValue"]{font-size:1.7rem;color:var(--ink);font-weight:680}
+.stButton>button,.stDownloadButton>button{min-height:42px;border-radius:9px;font-weight:650;border:1px solid #bcc6ce;box-shadow:none}
+.stButton>button[kind="primary"]{background:var(--brand);border-color:var(--brand);color:#fff}.stButton>button[kind="primary"]:hover{background:#274b59;border-color:#274b59}
+.stTextInput input,.stTextArea textarea{background:#fbfcfd!important;border:1px solid #bfc8d0!important;border-radius:9px!important;color:var(--ink)!important}
+[data-testid="stFileUploaderDropzone"]{background:var(--panel);border:1px dashed #aeb9c3;border-radius:12px;padding:1rem}
+[data-testid="stFileUploaderDropzone"] button{background:#e1e7eb!important;color:#263746!important;border:1px solid #bdc8d0!important}
+[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+div[data-testid="stAlert"]{border-radius:10px;border-width:1px;padding:.8rem 1rem}
+[data-testid="stExpander"]{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.hero{background:linear-gradient(135deg,#fbfcfd,#e7edef);border:1px solid var(--line);border-radius:15px;padding:1.45rem 1.6rem;margin-bottom:1.25rem}.hero p{max-width:760px;margin:.35rem 0 0}
+.kicker{color:var(--brand2);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;font-weight:750;margin-bottom:.45rem}
+.section-head{display:flex;justify-content:space-between;align-items:end;margin:1.6rem 0 .75rem}.section-head small{color:var(--muted)}
+.rule-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.15rem;margin-bottom:.8rem}
+[data-testid="stSidebar"] [role="radiogroup"] label{padding:.58rem .65rem;border-radius:8px;margin:.12rem 0}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:#d5dee4;color:#17303c}
+@media(max-width:900px){.block-container{padding:1.2rem}.hero{padding:1.15rem}}
+</style>
+""", unsafe_allow_html=True)
+
+registry=ModelRegistry(); recommender=RecommendationEngine(); profiles=CompanyProfileStore()
+companies=registry.list_companies(); default=companies[0] if companies else "demo_company"
+with st.sidebar:
+    st.markdown("### Finance Decision Studio")
+    st.caption("Governed model operations")
+    company=st.text_input("Company workspace",value=default,help="Models and policies are isolated by this ID.").strip()
+    st.divider()
+    page=st.radio("Navigation",["Overview","Credit risk","Demand analysis","Training","Company rules","Model versions","About"])
+    st.divider();st.caption("Half-light theme Â· Human oversight")
+
+def load_csv(label,key):
+    f=st.file_uploader(label,type=["csv"],key=key)
+    if not f:return None
+    try:return pd.read_csv(f,sep=None,engine="python")
+    except Exception as e:st.error(f"Could not read the CSV. {e}");return None
+
+def active(task):
+    try:return registry.load_latest(company,task)[1]
+    except Exception:return None
+
+def cards(values,names):
+    cols=st.columns(len(names))
+    for col,name in zip(cols,names):
+        value=values.get(name,"Not available")
+        if isinstance(value,float):value=f"{value:.3f}"
+        col.metric(name.replace("_"," "),value)
+
+def data_summary(df):
+    q=quality_report(df);cards(q,["rows","columns","duplicate_rows","missing_cells"])
+    with st.expander("Preview uploaded data"):
+        st.dataframe(df.head(25),use_container_width=True,hide_index=True)
+        st.caption(f"Missing data: {q['missing_percent']:.2f}%")
+
+def mapping(df,fields,key):
+    guesses=suggest_mapping(df.columns,fields);result={};choices=[""]+list(df.columns)
+    with st.expander("Review field mapping",expanded=True):
+        st.caption("Suggested matches are preselected. Every source field can be used only once.")
+        a,b=st.columns(2)
+        for i,field in enumerate(fields):
+            guess=guesses.get(field,"");result[field]=(a if i%2==0 else b).selectbox(field,choices,index=choices.index(guess) if guess in choices else 0,key=f"{key}_{field}")
+    errors=mapping_errors(result)
+    for error in errors:st.error(error)
+    return result,errors
+
+def title(kicker,heading,description):
+    st.markdown(f'<div class="kicker">{kicker}</div>',unsafe_allow_html=True);st.title(heading);st.caption(description)
+
+if page=="Overview":
+    credit,forecast=active("credit"),active("forecast")
+    st.markdown(f'<div class="hero"><div class="kicker">Workspace overview</div><h1>{company or "Choose a company"}</h1><p>Build governed models, review operational signals, and translate model output into accountable decisions.</p></div>',unsafe_allow_html=True)
+    cards({"companies":len(companies),"credit_model":"Ready" if credit else "Not trained","demand_model":"Ready" if forecast else "Not trained","approval":"Required"},["companies","credit_model","demand_model","approval"])
+    st.markdown('<div class="section-head"><h2>Model readiness</h2><small>Active versions and holdout results</small></div>',unsafe_allow_html=True)
+    left,right=st.columns(2)
+    with left:
+        st.markdown('<div class="rule-card"><div class="kicker">Credit</div><h3>Portfolio risk model</h3>',unsafe_allow_html=True)
+        if credit:cards(credit.get("metrics",{}),["ROC_AUC","F1_Score","Recall"]);st.caption(f"Active version: {credit.get('version','Unknown')}")
+        else:st.info("No active credit model. Use Training to create one.")
+        st.markdown('</div>',unsafe_allow_html=True)
+    with right:
+        st.markdown('<div class="rule-card"><div class="kicker">Demand</div><h3>Historical signal model</h3>',unsafe_allow_html=True)
+        if forecast:cards(forecast.get("metrics",{}),["MAE","WAPE","R2"]);st.caption(f"Active version: {forecast.get('version','Unknown')}")
+        else:st.info("No active demand model. Use Training to create one.")
+        st.markdown('</div>',unsafe_allow_html=True)
+    st.warning("Predictions and recommendations are decision support. A responsible employee must review consequential decisions.")
+
+elif page=="Credit risk":
+    title("Operational analysis","Credit risk","Upload current customer records. The active saved model runs without retraining.")
+    df=load_csv("Customer credit data","credit_predict")
+    if df is not None:
+        data_summary(df);mp,errs=mapping(df,[CREDIT_ID]+CREDIT_FEATURES,"cp");mapped=apply_mapping(df,mp);validation=validate_credit(mapped,False)
+        for e in validation:st.error(e)
+        if st.button("Analyze portfolio",type="primary",disabled=bool(errs or validation)):
+            try:
+                model,_=registry.load_latest(company,"credit");p,tiers=model.predict_risk(mapped);explanations=model.explain(mapped)
+                result=pd.DataFrame({CREDIT_ID:mapped[CREDIT_ID].astype(str),"risk_score":p,"risk_tier":tiers})
+                result["key_indicators"]=[" Â· ".join(f"{i['feature']}: {i['relative_position']}" for i in x.get("unusual_indicators",[])) for x in explanations]
+                result["recommended_actions"]=[" Â· ".join(recommender.credit(x)["recommended_actions"]) for x in explanations]
+                st.session_state[f"credit_result_{company}"]=result
+            except Exception as e:st.error(f"Portfolio analysis failed. {e}")
+    result=st.session_state.get(f"credit_result_{company}")
+    if result is not None:
+        cards({"customers":len(result),"low":int((result.risk_tier=="LOW_RISK").sum()),"medium":int((result.risk_tier=="MEDIUM_RISK").sum()),"high":int((result.risk_tier=="HIGH_RISK").sum())},["customers","low","medium","high"])
+        chart,table=st.columns([1,2]);chart.bar_chart(result.risk_tier.value_counts(),height=300);table.dataframe(result,use_container_width=True,hide_index=True,column_config={"risk_score":st.column_config.ProgressColumn("Risk score",min_value=0,max_value=1,format="%.0f%%")})
+        st.download_button("Download portfolio report",result.to_csv(index=False).encode(),"credit_portfolio.csv","text/csv")
+
+elif page=="Demand analysis":
+    title("Operational analysis","Demand analysis","Evaluate completed historical periods and identify unusual movement or inventory exposure.")
+    st.info("This is historical evaluation, not a future multi-step forecast.")
+    df=load_csv("Historical demand data","forecast_eval")
+    if df is not None:
+        data_summary(df);mp,errs=mapping(df,FORECAST_FIELDS,"fe");mapped=apply_mapping(df,mp);validation=validate_forecast(mapped,True)
+        for e in validation:st.error(e)
+        if st.button("Evaluate signals",type="primary",disabled=bool(errs or validation)):
+            try:
+                model,_=registry.load_latest(company,"forecast");featured=model.create_features(mapped);met=model.evaluate_featured(featured);result=model.detect_anomalies(mapped);result["recommended_actions"]=[" Â· ".join(recommender.forecast(row)) for _,row in result.iterrows()];st.session_state[f"forecast_result_{company}"]=(met,result)
+            except Exception as e:st.error(f"Demand evaluation failed. {e}")
+    saved=st.session_state.get(f"forecast_result_{company}")
+    if saved:
+        met,result=saved;cards(met,["MAE","RMSE","WAPE","R2"]);st.line_chart(result.groupby("date")[["units_sold","forecast_units_sold"]].sum(),height=320)
+        alerts=result[(result.is_anomaly==1)|(result.is_stockout_risk==1)];cards({"anomalies":int(result.is_anomaly.sum()),"stockout_risks":int(result.is_stockout_risk.sum())},["anomalies","stockout_risks"]);st.dataframe(alerts,use_container_width=True,hide_index=True)
+        st.download_button("Download demand report",result.to_csv(index=False).encode(),"demand_analysis.csv","text/csv")
+
+elif page=="Training":
+    title("Controlled workflow","Training","Validate data, train on one partition, evaluate on untouched records, and save a version.")
+    task=st.radio("Model family",["Credit risk","Demand"],horizontal=True)
+    if task=="Credit risk":
+        df=load_csv("Labeled credit history","credit_train")
+        if df is not None:
+            data_summary(df);mp,errs=mapping(df,[CREDIT_ID]+CREDIT_FEATURES+[CREDIT_TARGET],"ct");mapped=apply_mapping(df,mp);validation=validate_credit(mapped,True)
+            for e in validation:st.error(e)
+            a,b,c=st.columns(3);model_type=a.selectbox("Model",["boosted","baseline"]);review=b.slider("Review threshold",.10,.85,.50,.05);high=c.slider("High-risk threshold",.20,.95,.60,.05)
+            if review>high:validation.append("threshold");st.error("Review threshold cannot exceed the high-risk threshold.")
+            if st.button("Train credit model",type="primary",disabled=bool(errs or validation)):
+                try:
+                    with st.status("Training credit model",expanded=True) as s:
+                        st.write("Creating stratified holdout");model,met=train_credit(mapped,model_type,review_threshold=review,high_risk_threshold=high);st.write("Saving version");registry.save(company,"credit",model,{"metrics":met,"mapping":mp,"data_summary":quality_report(mapped)});s.update(label="Credit model saved",state="complete")
+                    cards(met,["ROC_AUC","PR_AUC","Accuracy","F1_Score","Precision","Recall"])
+                except Exception as e:st.error(f"Training failed. {e}")
+    else:
+        df=load_csv("Historical demand training data","forecast_train")
+        if df is not None:
+            data_summary(df);mp,errs=mapping(df,FORECAST_FIELDS,"ft");mapped=apply_mapping(df,mp);validation=validate_forecast(mapped,True)
+            for e in validation:st.error(e)
+            model_type=st.selectbox("Model",["boosted","baseline"],key="forecast_model")
+            if st.button("Train demand model",type="primary",disabled=bool(errs or validation)):
+                try:
+                    with st.status("Training demand model",expanded=True) as s:
+                        st.write("Creating chronological holdout");model,met=train_forecast(mapped,model_type);st.write("Saving version");registry.save(company,"forecast",model,{"metrics":met,"mapping":mp,"data_summary":quality_report(mapped)});s.update(label="Demand model saved",state="complete")
+                    cards(met,["MAE","RMSE","WAPE","R2"])
+                except Exception as e:st.error(f"Training failed. {e}")
+
+elif page=="Company rules":
+    title("Governance","Company rules","Personalize recommendations without changing model predictions.")
+    profile=profiles.load(company)
+    with st.form("company_policy"):
+        st.markdown("### Workspace identity")
+        left,right=st.columns(2);display=left.text_input("Company display name",profile.display_name,placeholder="Example: North Region Finance");currency=right.text_input("Currency",profile.currency)
+        language=left.selectbox("Preferred language",["English","French","Arabic"],index=["English","French","Arabic"].index(profile.language) if profile.language in ["English","French","Arabic"] else 0)
+        human=right.checkbox("Require human approval",profile.require_human_approval)
+        st.markdown("### Recommendation controls")
+        rules=st.text_area("Mandatory rules","\n".join(profile.recommendation_rules),height=115,placeholder="One rule per line")
+        blocked=st.text_area("Forbidden action keywords","\n".join(profile.forbidden_actions),height=115,placeholder="One phrase per line")
+        submitted=st.form_submit_button("Save company rules",type="primary")
+    if submitted:
+        profile.display_name=display.strip();profile.currency=currency.strip() or "TND";profile.language=language;profile.require_human_approval=human;profile.recommendation_rules=[x.strip() for x in rules.splitlines() if x.strip()];profile.forbidden_actions=[x.strip() for x in blocked.splitlines() if x.strip()];profiles.save(profile);st.success("Company rules saved.")
+
+elif page=="Model versions":
+    title("Lifecycle","Model versions","Inspect saved versions and choose the active model for each workflow.")
+    for task in ["credit","forecast"]:
+        st.markdown(f"### {task.title()}");versions=registry.versions(company,task)
+        if not versions:st.info("No saved versions.");continue
+        rows=[{"version":v["version"],"saved_at":v["saved_at_utc"],**{k:value for k,value in v.get("metrics",{}).items() if isinstance(value,(int,float,str))}} for v in versions];st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+        chosen=st.selectbox("Activate version",[v["version"] for v in versions],key=f"version_{task}")
+        if st.button("Set active",key=f"activate_{task}"):registry.activate(company,task,chosen);st.success("Active model updated.")
+
+else:
+    title("Product guide","About","A concise guide to the system boundaries and operating model.")
+    st.markdown("""1. Choose a company workspace.  
+2. Train with validated historical data.  
+3. Review holdout metrics before operational use.  
+4. Analyze current records without retraining.  
+5. Require human review for consequential recommendations.  
+6. Use Model versions to inspect or reactivate prior models.""")
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\ui\theme.py ===
+import streamlit as st
+
+
+def apply_light_theme() -> None:
+    st.markdown(
+        """
+<style>
+:root {
+  color-scheme: light !important;
+  --bg: #f7f9fc;
+  --surface: #ffffff;
+  --sidebar: #ffffff;
+  --text: #152238;
+  --muted: #667085;
+  --border: #e4e9f1;
+  --primary: #3157d5;
+  --primary-dark: #2445b5;
+  --primary-soft: #eef2ff;
+  --success: #16794f;
+  --success-soft: #edf9f3;
+  --warning: #9a6700;
+  --warning-soft: #fff8e6;
+  --danger: #c23b3b;
+  --danger-soft: #fff1f1;
+}
+html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+}
+[data-testid="stHeader"] { background: rgba(247,249,252,.92) !important; }
+[data-testid="stToolbar"] { color: var(--text) !important; }
+[data-testid="stSidebar"] {
+  background: var(--sidebar) !important;
+  border-right: 1px solid var(--border) !important;
+  box-shadow: 6px 0 24px rgba(26,49,92,.035) !important;
+}
+[data-testid="stSidebar"] * { color: var(--text) !important; }
+[data-testid="stSidebar"] .stCaptionContainer p { color: var(--muted) !important; }
+[data-testid="stSidebar"] [role="radiogroup"] label {
+  padding: .48rem .65rem !important;
+  border-radius: 9px !important;
+  transition: background .15s ease !important;
+}
+[data-testid="stSidebar"] [role="radiogroup"] label:hover { background: #f3f6fb !important; }
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+.block-container { max-width: 1380px !important; padding: 2.2rem 2.4rem 4rem !important; }
+h1, h2, h3, h4, h5, h6, p, label, span, div { color: var(--text); }
+h1 { font-size: 2.05rem !important; letter-spacing: -.035em !important; margin-bottom: .25rem !important; }
+h2 { font-size: 1.4rem !important; letter-spacing: -.02em !important; }
+h3 { font-size: 1.08rem !important; }
+.stCaptionContainer p, [data-testid="stCaptionContainer"] p { color: var(--muted) !important; }
+[data-testid="stMetric"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 1rem 1.1rem !important;
+  box-shadow: 0 4px 16px rgba(31,55,94,.045) !important;
+}
+[data-testid="stMetricLabel"] p { color: var(--muted) !important; font-size: .82rem !important; font-weight: 650 !important; }
+[data-testid="stMetricValue"] { color: var(--text) !important; font-size: 1.55rem !important; }
+.stButton > button, .stDownloadButton > button {
+  min-height: 2.7rem !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(31,55,94,.04) !important;
+}
+.stButton > button[kind="primary"] {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: white !important;
+}
+.stButton > button[kind="primary"] * { color: white !important; }
+.stButton > button[kind="primary"]:hover { background: var(--primary-dark) !important; }
+input, textarea, [data-baseweb="select"] > div {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: #d7deea !important;
+  border-radius: 10px !important;
+}
+input::placeholder, textarea::placeholder { color: #98a2b3 !important; }
+[data-testid="stFileUploaderDropzone"] {
+  background: var(--surface) !important;
+  border: 1.5px dashed #b9c4d5 !important;
+  border-radius: 14px !important;
+}
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+[data-testid="stExpander"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+}
+[data-testid="stAlert"] { border-radius: 12px !important; border: 1px solid var(--border) !important; }
+[data-testid="stAlert"]:has([data-testid="stNotificationContentInfo"]) { background: #f1f6ff !important; }
+[data-testid="stAlert"]:has([data-testid="stNotificationContentWarning"]) { background: var(--warning-soft) !important; }
+[data-testid="stAlert"] p { color: var(--text) !important; }
+[data-testid="stStatusWidget"] { background: var(--surface) !important; border-color: var(--border) !important; }
+hr { border-color: var(--border) !important; }
+.app-hero {
+  background: linear-gradient(135deg, #ffffff 0%, #f2f5ff 100%);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 1.55rem 1.65rem;
+  margin: 0 0 1.25rem;
+  box-shadow: 0 8px 30px rgba(35,65,130,.055);
+}
+.app-kicker { color: var(--primary); font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.app-hero h1 { margin: .3rem 0 .35rem !important; }
+.app-hero p { color: var(--muted) !important; margin: 0; max-width: 760px; }
+.section-label { color: var(--muted); font-size: .76rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; margin-top: .9rem; }
+@media (max-width: 900px) { .block-container { padding: 1.35rem 1rem 3rem !important; } }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\ui\__init__.py ===
+
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\config.py ===
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+RANDOM_STATE = 42
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\smoke_check.py ===
+import tempfile
+from pathlib import Path
+import numpy as np
+import pandas as pd
+from src.services.training import train_credit,train_forecast
+from src.services.model_registry import ModelRegistry
+
+def credit_data(n=240):
+    rng=np.random.default_rng(42); d={'client_id':[f'C{i}' for i in range(n)],'LIMIT_BAL':rng.integers(10000,300000,n),'AGE':rng.integers(21,70,n),'EDUCATION':rng.integers(1,5,n),'MARRIAGE':rng.integers(1,4,n)}
+    for i in range(7): d[f'PAY_{i}']=rng.integers(-2,5,n)
+    for i in range(1,7): d[f'BILL_AMT{i}']=rng.integers(0,200000,n); d[f'PAY_AMT{i}']=rng.integers(0,50000,n)
+    d['default_next_month']=(d['PAY_0']>1).astype(int); return pd.DataFrame(d)
+def forecast_data():
+    rows=[]
+    for day,date in enumerate(pd.date_range('2025-01-01',periods=80)):
+        rows.append({'date':date,'store_id':'S1','product_id':'P1','category':'Grocery','region':'North','units_sold':100+day%7,'inventory_level':500,'promotions_holidays':0,'weather_conditions':'Sunny'})
+    return pd.DataFrame(rows)
+def main():
+    c,m=train_credit(credit_data(),'baseline'); assert m['n_test']>0
+    f,m2=train_forecast(forecast_data(),'baseline'); assert m2['n_test']>0
+    with tempfile.TemporaryDirectory() as td:
+        r=ModelRegistry(Path(td)); r.save('demo','credit',c,{'metrics':m}); loaded,meta=r.load_latest('demo','credit'); assert meta['task']=='credit'
+    print('Smoke check passed',m['ROC_AUC'],m2['MAE'])
+if __name__=='__main__': main()
+
+
+=== C:\Users\boufa\Downloads\finance-stage\src\__init__.py ===
+
+
+
