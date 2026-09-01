@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pandas as pd
 import streamlit as st
 from src.services.schema import *
-from src.services.training import train_credit, train_forecast
+from src.services.training import train_credit, train_forecast, compare_credit_augmentation
 from src.services.model_registry import ModelRegistry
 from src.agents.recommender import RecommendationEngine
 from src.services.company_profile import CompanyProfileStore
@@ -27,7 +27,7 @@ h1{font-size:2rem!important;line-height:1.16!important;letter-spacing:-.035em!im
 [data-testid="stMetricLabel"]{font-size:.74rem;text-transform:uppercase;letter-spacing:.055em;color:var(--muted)}
 [data-testid="stMetricValue"]{font-size:1.7rem;color:var(--ink);font-weight:680}
 .stButton>button,.stDownloadButton>button{min-height:42px;border-radius:9px;font-weight:650;border:1px solid #bcc6ce;box-shadow:none}
-.stButton>button[kind="primary"]{background:var(--brand);border-color:var(--brand);color:#fff}.stButton>button[kind="primary"]:hover{background:#274b59;border-color:#274b59}
+.stButton>button[kind="primary"]{background:var(--brand);border-color:var(--brand);color:#fff!important}.stButton>button[kind="primary"]:hover{background:#274b59;border-color:#274b59;color:#fff!important}
 .stTextInput input,.stTextArea textarea{background:#fbfcfd!important;border:1px solid #bfc8d0!important;border-radius:9px!important;color:var(--ink)!important}
 [data-testid="stFileUploaderDropzone"]{background:var(--panel);border:1px dashed #aeb9c3;border-radius:12px;padding:1rem}
 [data-testid="stFileUploaderDropzone"] button{background:#e1e7eb!important;color:#263746!important;border:1px solid #bdc8d0!important}
@@ -40,6 +40,11 @@ div[data-testid="stAlert"]{border-radius:10px;border-width:1px;padding:.8rem 1re
 .rule-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.15rem;margin-bottom:.8rem}
 [data-testid="stSidebar"] [role="radiogroup"] label{padding:.58rem .65rem;border-radius:8px;margin:.12rem 0}
 [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){background:#d5dee4;color:#17303c}
+[data-testid="stSidebar"] .stButton>button{background:#1d2b35!important;border:1px solid #1d2b35!important;color:#ffffff!important}
+[data-testid="stSidebar"] .stButton>button:hover{background:#10212d!important;border-color:#10212d!important;color:#ffffff!important}
+/* Login page button styling */
+button[kind="primaryFormSubmit"]{color:#ffffff!important}
+button[kind="primaryFormSubmit"]:hover{color:#ffffff!important}
 @media(max-width:900px){.block-container{padding:1.2rem}.hero{padding:1.15rem}}
 </style>
 """, unsafe_allow_html=True)
@@ -79,22 +84,30 @@ st.markdown("""<style>
 [data-testid="stSidebar"] *{color:#102331!important}
 .stTextInput label,.stTextArea label,.stSelectbox label,.stSlider label,.stFileUploader label{font-weight:700!important}
 .stButton>button,.stDownloadButton>button{min-height:46px!important}
+.stFormSubmitButton button{color:#ffffff!important}
+.stFormSubmitButton button[kind="primary"]{color:#ffffff!important}
 .login-shell{max-width:680px;margin:5vh auto 1.25rem;background:#fff;border:1px solid var(--line);border-radius:18px;padding:1.8rem 2rem;text-align:center;box-shadow:0 12px 36px rgba(17,38,54,.08)}
 .login-shell p{margin:.5rem 0 0!important}
 [data-testid="stAlert"] p{color:#17212b!important}
 </style>""", unsafe_allow_html=True)
 
-companies=registry.list_companies(); default=companies[0] if companies else "demo_company"
+ADMIN_COMPANY_ID = "admin_company"
+company = ADMIN_COMPANY_ID
+registry.company_dir(company, create=True)
+profiles.save(profiles.load(company))
 with st.sidebar:
     st.markdown("### Finance Decision Studio")
-    st.caption("Governed model operations")
-    st.success(f"Signed in as {current_user()}", icon="✅")
-    if st.button("Sign out", use_container_width=True):
-        sign_out(); st.rerun()
-    company=st.text_input("Company workspace",value=default,help="Models and policies are isolated by this ID.").strip()
+    st.caption("Admin-controlled platform")
     st.divider()
     page=st.radio("Navigation",["Dashboard","Analyze credit risk","Analyze demand","Train models","Company policies","Model history","Help"])
     st.divider();st.caption("Secure workspace • Human oversight")
+    st.markdown("---")
+    st.success(f"Signed in as {current_user()}", icon="✅")
+    if st.button("📝 Sign Up", use_container_width=True, key="signup_button"):
+        st.info("Sign up functionality coming soon. Contact administrator for access.")
+    st.markdown("")
+    if st.button("Sign out", use_container_width=True, key="sidebar_sign_out"):
+        sign_out(); st.rerun()
 
 def load_csv(label,key):
     f=st.file_uploader(label,type=["csv"],key=key)
@@ -103,9 +116,10 @@ def load_csv(label,key):
     except Exception as e:st.error(f"Could not read the CSV. {e}");return None
 
 def active(task):
-    try:return registry.load_latest(company,task)[1]
-    except Exception:return None
-
+    try:
+        return registry.load_latest(company,task)[1]
+    except Exception:
+        return None
 def cards(values,names):
     cols=st.columns(len(names))
     for col,name in zip(cols,names):
@@ -120,24 +134,30 @@ def data_summary(df):
         st.caption(f"Missing data: {q['missing_percent']:.2f}%")
 
 def mapping(df,fields,key):
-    guesses=suggest_mapping(df.columns,fields);result={};choices=[""]+list(df.columns)
-    with st.expander("Review field mapping",expanded=True):
-        st.caption("Suggested matches are preselected. Every source field can be used only once.")
+    guesses=suggest_mapping(df.columns,fields); result={}; choices=[""]+list(df.columns)
+    with st.expander("Validate field mapping",expanded=True):
+        st.caption("Exact matches are reserved first. Payment status, bill amount and payment amount families cannot be mixed.")
         a,b=st.columns(2)
         for i,field in enumerate(fields):
-            guess=guesses.get(field,"");result[field]=(a if i%2==0 else b).selectbox(field,choices,index=choices.index(guess) if guess in choices else 0,key=f"{key}_{field}")
-    errors=mapping_errors(result)
+            guess=guesses.get(field,"")
+            result[field]=(a if i%2==0 else b).selectbox(field,choices,index=choices.index(guess) if guess in choices else 0,key=f"{key}_{field}",help="Optional. A stable row ID is generated when missing." if field==CREDIT_ID else None)
+        rows,errors=mapping_diagnostics(result,fields)
+        report=pd.DataFrame(rows)
+        exact=int((report.Status=="Exact").sum()); aliases=int((report.Status=="Alias").sum()); missing=int((report.Status=="Missing").sum()); invalid=int((report.Status=="Invalid family").sum())
+        c1,c2,c3,c4=st.columns(4);c1.metric("Exact",exact);c2.metric("Aliases",aliases);c3.metric("Missing",missing);c4.metric("Invalid",invalid)
+        st.dataframe(report,use_container_width=True,hide_index=True,column_config={"Confidence":st.column_config.ProgressColumn("Confidence",min_value=0,max_value=1,format="%.0f%%")})
+        unused=[c for c in df.columns if c not in {v for v in result.values() if v}]
+        if unused:st.caption("Unused source columns: "+", ".join(map(str,unused)))
     for error in errors:st.error(error)
     return result,errors
-
 def title(kicker,heading,description):
     st.markdown(f'<div class="kicker">{kicker}</div>',unsafe_allow_html=True);st.title(heading);st.caption(description)
 
 if page=="Dashboard":
     credit,forecast=active("credit"),active("forecast")
     st.markdown(f'<div class="hero"><div class="kicker">Workspace overview</div><h1>{company or "Choose a company"}</h1><p>Build governed models, review operational signals, and translate model output into accountable decisions.</p></div>',unsafe_allow_html=True)
-    cards({"companies":len(companies),"credit_model":"Ready" if credit else "Not trained","demand_model":"Ready" if forecast else "Not trained","approval":"Required"},["companies","credit_model","demand_model","approval"])
-    st.markdown('<div class="section-head"><h2>Model readiness</h2><small>Active versions and holdout results</small></div>',unsafe_allow_html=True)
+    cards({"platform":"Centralized","credit_model":"Ready" if credit else "Not trained","demand_model":"Ready" if forecast else "Not trained","approval":"Required"},["platform","credit_model","demand_model","approval"])
+    st.markdown('<div class="section-head"><h2>Model readiness</h2><small>Admin-owned platform metrics</small></div>',unsafe_allow_html=True)
     left,right=st.columns(2)
     with left:
         st.markdown('<div class="rule-card"><div class="kicker">Credit</div><h3>Portfolio risk model</h3>',unsafe_allow_html=True)
@@ -149,18 +169,17 @@ if page=="Dashboard":
         if forecast:cards(forecast.get("metrics",{}),["MAE","WAPE","R2"]);st.caption(f"Active version: {forecast.get('version','Unknown')}")
         else:st.info("No active demand model. Use Training to create one.")
         st.markdown('</div>',unsafe_allow_html=True)
-    st.warning("Predictions and recommendations are decision support. A responsible employee must review consequential decisions.")
 
 elif page=="Analyze credit risk":
     title("Operational analysis","Credit risk","Upload current customer records. The active saved model runs without retraining.")
     df=load_csv("Customer credit data","credit_predict")
     if df is not None:
-        data_summary(df);mp,errs=mapping(df,[CREDIT_ID]+CREDIT_FEATURES,"cp");mapped=apply_mapping(df,mp);validation=validate_credit(mapped,False)
+        data_summary(df); fields=available_credit_fields(df.columns,False); mp,errs=mapping(df,fields,"cp_v4"); mapped=apply_mapping(df,mp); validation=validate_credit(mapped,False)
         for e in validation:st.error(e)
         if st.button("Analyze portfolio",type="primary",disabled=bool(errs or validation)):
             try:
                 model,_=registry.load_latest(company,"credit");p,tiers=model.predict_risk(mapped);explanations=model.explain(mapped)
-                result=pd.DataFrame({CREDIT_ID:mapped[CREDIT_ID].astype(str),"risk_score":p,"risk_tier":tiers})
+                identifiers=mapped[CREDIT_ID].astype(str) if CREDIT_ID in mapped.columns else mapped.index.astype(str); result=pd.DataFrame({CREDIT_ID:identifiers,"risk_score":p,"risk_tier":tiers})
                 result["key_indicators"]=[" • ".join(f"{i['feature']}: {i['relative_position']}" for i in x.get("unusual_indicators",[])) for x in explanations]
                 result["recommended_actions"]=[" • ".join(recommender.credit(x)["recommended_actions"]) for x in explanations]
                 st.session_state[f"credit_result_{company}"]=result
@@ -194,16 +213,42 @@ elif page=="Train models":
     if task=="Credit risk":
         df=load_csv("Labeled credit history","credit_train")
         if df is not None:
-            data_summary(df);mp,errs=mapping(df,[CREDIT_ID]+CREDIT_FEATURES+[CREDIT_TARGET],"ct");mapped=apply_mapping(df,mp);validation=validate_credit(mapped,True)
+            data_summary(df); fields=available_credit_fields(df.columns,True); mp,errs=mapping(df,fields,"ct_v4"); mapped=apply_mapping(df,mp); validation=validate_credit(mapped,True)
             for e in validation:st.error(e)
-            a,b,c=st.columns(3);model_type=a.selectbox("Model",["boosted","baseline"]);review=b.slider("Review threshold",.10,.85,.50,.05);high=c.slider("High-risk threshold",.20,.95,.60,.05)
+            a,b,c=st.columns(3);model_type=a.selectbox("Model",["xgboost","boosted","baseline"],help="XGBoost is the recommended default; alternatives remain for benchmarking.");review=b.slider("Review threshold",.10,.85,.50,.05);high=c.slider("High-risk threshold",.20,.95,.60,.05)
             if review>high:validation.append("threshold");st.error("Review threshold cannot exceed the high-risk threshold.")
             if st.button("Train credit model",type="primary",disabled=bool(errs or validation)):
                 try:
-                    with st.status("Training credit model",expanded=True) as s:
-                        st.write("Creating stratified holdout");model,met=train_credit(mapped,model_type,review_threshold=review,high_risk_threshold=high);st.write("Saving version");registry.save(company,"credit",model,{"metrics":met,"mapping":mp,"data_summary":quality_report(mapped)});s.update(label="Credit model saved",state="complete")
-                    cards(met,["ROC_AUC","PR_AUC","Accuracy","F1_Score","Precision","Recall"])
+                    with st.status("Training credit model",expanded=True) as status:
+                        st.write("Creating a fixed stratified holdout");model,met=train_credit(mapped,model_type,review_threshold=review,high_risk_threshold=high);st.write("Saving baseline version");registry.save(company,"credit",model,{"metrics":met,"mapping":mp,"data_summary":quality_report(mapped),"experiment":"baseline"});status.update(label="Baseline model saved",state="complete")
+                    st.session_state[f"credit_training_{company}"]=(mapped,mp,model_type,review,high,met)
                 except Exception as e:st.error(f"Training failed. {e}")
+            trained=st.session_state.get(f"credit_training_{company}")
+            if trained:
+                source,stored_mapping,stored_type,stored_review,stored_high,met=trained
+                cards(met,["ROC_AUC","PR_AUC","Accuracy","F1_Score","Precision","Recall","Brier_Score"])
+                st.caption(f"Untouched holdout: {met.get('test_rows')} rows · Default prevalence: {met.get('default_prevalence',0):.1%} · False negatives: {met.get('false_negatives')}")
+                st.markdown("### Controlled data augmentation experiment")
+                st.info("Augmentation affects only the training partition. The exact same untouched holdout is used before and after, so the comparison is fair.")
+                x,y=st.columns(2);target_ratio=x.slider("Minority-to-majority target ratio",.30,1.00,.75,.05,help="Adds minority-class training examples until this ratio is reached.");jitter=y.slider("Continuous-value variation",0.0,.10,.025,.005,help="Small scale-aware variation applied only to continuous monetary fields.")
+                if st.button("Run augmentation comparison",disabled=bool(errs or validation)):
+                    try:
+                        with st.status("Comparing on the same holdout",expanded=True) as status:
+                            st.write("Training baseline");result=compare_credit_augmentation(source,stored_type,review_threshold=stored_review,high_risk_threshold=stored_high,target_ratio=target_ratio,jitter=jitter);st.write("Training augmented challenger");status.update(label="Comparison complete",state="complete")
+                        st.session_state[f"augmentation_{company}"]=result
+                    except Exception as e:st.error(f"Augmentation experiment failed. {e}")
+                experiment=st.session_state.get(f"augmentation_{company}")
+                if experiment:
+                    comparison=pd.DataFrame(experiment["comparison"]);st.dataframe(comparison,use_container_width=True,hide_index=True)
+                    meta=experiment["augmentation"];st.caption(f"Synthetic training rows: {meta['synthetic_rows']} · Training rows after augmentation: {meta['augmented_rows']} · Holdout unchanged")
+                    choice=experiment["recommended"]
+                    if choice=="augmented":st.success("The augmented challenger improved the weighted validation objective without materially reducing recall.")
+                    else:st.warning("Augmentation did not provide a reliable improvement. Keep the non-augmented baseline.")
+                    if st.button(f"Save recommended {choice} model",type="primary"):
+                        selected=experiment["augmented_model"] if choice=="augmented" else experiment["baseline_model"]
+                        selected_metrics=experiment["augmented_metrics"] if choice=="augmented" else experiment["baseline_metrics"]
+                        selected_metrics.update({"model_type":stored_type,"augmentation":meta if choice=="augmented" else {"synthetic_rows":0},"selection":"same-holdout challenger comparison"})
+                        registry.save(company,"credit",selected,{"metrics":selected_metrics,"mapping":stored_mapping,"data_summary":quality_report(source),"experiment":choice});st.success("Recommended model version saved and activated.")
     else:
         df=load_csv("Historical demand training data","forecast_train")
         if df is not None:

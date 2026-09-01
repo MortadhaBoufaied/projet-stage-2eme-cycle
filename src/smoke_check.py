@@ -7,7 +7,7 @@ from src.services.model_registry import ModelRegistry
 
 def credit_data(n=240):
     rng=np.random.default_rng(42); d={'client_id':[f'C{i}' for i in range(n)],'LIMIT_BAL':rng.integers(10000,300000,n),'AGE':rng.integers(21,70,n),'EDUCATION':rng.integers(1,5,n),'MARRIAGE':rng.integers(1,4,n)}
-    for i in range(7): d[f'PAY_{i}']=rng.integers(-2,5,n)
+    for i in [0,2,3,4,5,6]: d[f'PAY_{i}']=rng.integers(-2,5,n)
     for i in range(1,7): d[f'BILL_AMT{i}']=rng.integers(0,200000,n); d[f'PAY_AMT{i}']=rng.integers(0,50000,n)
     d['default_next_month']=(d['PAY_0']>1).astype(int); return pd.DataFrame(d)
 def forecast_data():
