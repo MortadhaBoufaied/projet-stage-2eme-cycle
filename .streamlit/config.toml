@@ -9,3 +9,4 @@ font="sans serif"
 gatherUsageStats=false
 [server]
 maxUploadSize=200
+headless=true
