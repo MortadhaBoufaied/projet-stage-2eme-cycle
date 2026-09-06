@@ -1,0 +1,49 @@
+{
+  "metrics": {
+    "MAE": 69.1985,
+    "RMSE": 88.5968,
+    "WAPE": 0.5092,
+    "R2": 0.3298,
+    "n_test": 14700,
+    "split": "chronological holdout",
+    "cutoff_date": "2023-08-08",
+    "train_rows": 58400,
+    "test_rows": 14700
+  },
+  "mapping": {
+    "date": "Date",
+    "store_id": "Store ID",
+    "product_id": "Product ID",
+    "units_sold": "Units Sold",
+    "category": "Category",
+    "region": "Region",
+    "inventory_level": "Inventory Level",
+    "promotions_holidays": "",
+    "weather_conditions": "",
+    "price": "Price",
+    "units_ordered": "Units Ordered"
+  },
+  "model_type": "xgboost",
+  "service": "cashflow_forecast",
+  "source_files": [
+    "retail_store_inventory-selected-columns.csv"
+  ],
+  "training_preparation": {
+    "requested_mb": 500.0,
+    "prepared_mb": 28.49,
+    "source_rows": 73100,
+    "prepared_rows": 73100,
+    "problem_rows_removed": 0,
+    "valid_rows_removed_for_size": 0
+  },
+  "company_id": "demo_company",
+  "task": "forecast",
+  "model_file": "model_20260903T152037514523Z.joblib",
+  "version": "20260903T152037514523Z",
+  "status": "CHAMPION",
+  "created_at_utc": "2026-09-03T15:20:37.550296+00:00",
+  "activated_at_utc": "2026-09-03T15:20:37.562546+00:00",
+  "archived_at_utc": null,
+  "deleted_at_utc": null,
+  "activated_by": "administrator"
+}

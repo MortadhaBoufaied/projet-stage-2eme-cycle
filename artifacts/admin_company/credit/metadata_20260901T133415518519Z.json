@@ -1,0 +1,77 @@
+{
+  "metrics": {
+    "ROC_AUC": 0.7798,
+    "PR_AUC": 0.5621,
+    "Accuracy": 0.7573,
+    "F1_Score": 0.5339,
+    "Precision": 0.4641,
+    "Recall": 0.6285,
+    "Brier_Score": 0.1768,
+    "Confusion_Matrix": [
+      [
+        3710,
+        963
+      ],
+      [
+        493,
+        834
+      ]
+    ],
+    "true_negatives": 3710,
+    "false_positives": 963,
+    "false_negatives": 493,
+    "true_positives": 834,
+    "default_prevalence": 0.2212,
+    "n_test": 6000,
+    "review_threshold": 0.5,
+    "split": "fixed stratified holdout",
+    "train_rows": 24000,
+    "fit_rows": 24000,
+    "test_rows": 6000,
+    "model_type": "xgboost",
+    "augmentation": {
+      "synthetic_rows": 0,
+      "original_rows": 24000,
+      "augmented_rows": 24000
+    }
+  },
+  "mapping": {
+    "client_id": "ID",
+    "LIMIT_BAL": "LIMIT_BAL",
+    "AGE": "AGE",
+    "EDUCATION": "EDUCATION",
+    "MARRIAGE": "MARRIAGE",
+    "PAY_0": "PAY_0",
+    "PAY_2": "PAY_2",
+    "PAY_3": "PAY_3",
+    "PAY_4": "PAY_4",
+    "PAY_5": "PAY_5",
+    "PAY_6": "PAY_6",
+    "BILL_AMT1": "BILL_AMT1",
+    "BILL_AMT2": "BILL_AMT2",
+    "BILL_AMT3": "BILL_AMT3",
+    "BILL_AMT4": "BILL_AMT4",
+    "BILL_AMT5": "BILL_AMT5",
+    "BILL_AMT6": "BILL_AMT6",
+    "PAY_AMT1": "PAY_AMT1",
+    "PAY_AMT2": "PAY_AMT2",
+    "PAY_AMT3": "PAY_AMT3",
+    "PAY_AMT4": "PAY_AMT4",
+    "PAY_AMT5": "PAY_AMT5",
+    "PAY_AMT6": "PAY_AMT6",
+    "default_next_month": "default.payment.next.month"
+  },
+  "data_summary": {
+    "rows": 30000,
+    "columns": 25,
+    "duplicate_rows": 0,
+    "missing_cells": 0,
+    "missing_percent": 0.0
+  },
+  "experiment": "baseline",
+  "company_id": "admin_company",
+  "task": "credit",
+  "model_file": "model_20260901T133415518519Z.joblib",
+  "version": "20260901T133415518519Z",
+  "saved_at_utc": "20260901T133415518519Z"
+}

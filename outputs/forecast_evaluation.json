@@ -1,0 +1,18 @@
+{
+  "agent": "Cashflow / Revenue Forecast Agent",
+  "split": "Chronological Train (80%) / Test (20%)",
+  "baseline_ridge": {
+    "MAE": 0.0004,
+    "RMSE": 0.0005,
+    "WAPE": 0.0,
+    "R2": 1.0,
+    "n_test": 14400
+  },
+  "boosted_model": {
+    "MAE": 0.0036,
+    "RMSE": 0.0482,
+    "WAPE": 0.0,
+    "R2": 1.0,
+    "n_test": 14400
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "task": "forecast",
+  "model_file": "forecast_default_champion.joblib",
+  "version": "bundled-v1",
+  "status": "CHAMPION",
+  "metrics": {
+    "MAE": 0.4865,
+    "RMSE": 0.5715,
+    "WAPE": 0.0047,
+    "R2": 0.9135,
+    "n_test": 16,
+    "split": "chronological holdout",
+    "cutoff_date": "2025-03-06",
+    "train_rows": 64,
+    "test_rows": 16
+  }
+}

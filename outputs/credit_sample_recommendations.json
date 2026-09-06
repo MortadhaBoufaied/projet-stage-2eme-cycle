@@ -1,0 +1,98 @@
+[
+  {
+    "risk_tier": "HIGH_RISK",
+    "risk_score": 0.8373,
+    "recommended_actions": [
+      "Request manual credit review.",
+      "Reduce exposure and tighten payment terms.",
+      "Increase collection monitoring."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "MEDIUM_RISK",
+    "risk_score": 0.5631,
+    "recommended_actions": [
+      "Send early reminders.",
+      "Monitor repayment behavior monthly.",
+      "Consider an early-payment incentive."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "HIGH_RISK",
+    "risk_score": 0.8729,
+    "recommended_actions": [
+      "Request manual credit review.",
+      "Reduce exposure and tighten payment terms.",
+      "Increase collection monitoring."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "HIGH_RISK",
+    "risk_score": 0.9033,
+    "recommended_actions": [
+      "Request manual credit review.",
+      "Reduce exposure and tighten payment terms.",
+      "Increase collection monitoring."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "HIGH_RISK",
+    "risk_score": 0.6009,
+    "recommended_actions": [
+      "Request manual credit review.",
+      "Reduce exposure and tighten payment terms.",
+      "Increase collection monitoring."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "LOW_RISK",
+    "risk_score": 0.4052,
+    "recommended_actions": [
+      "Maintain standard controls.",
+      "Consider normal commercial terms."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "HIGH_RISK",
+    "risk_score": 0.9749,
+    "recommended_actions": [
+      "Request manual credit review.",
+      "Reduce exposure and tighten payment terms.",
+      "Increase collection monitoring."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "LOW_RISK",
+    "risk_score": 0.2055,
+    "recommended_actions": [
+      "Maintain standard controls.",
+      "Consider normal commercial terms."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "LOW_RISK",
+    "risk_score": 0.1344,
+    "recommended_actions": [
+      "Maintain standard controls.",
+      "Consider normal commercial terms."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  },
+  {
+    "risk_tier": "LOW_RISK",
+    "risk_score": 0.1224,
+    "recommended_actions": [
+      "Maintain standard controls.",
+      "Consider normal commercial terms."
+    ],
+    "note": "Decision support only. A responsible employee should review the recommendation."
+  }
+]

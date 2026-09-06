@@ -1,0 +1,42 @@
+{
+  "task": "credit",
+  "model_file": "credit_default_champion.joblib",
+  "version": "bundled-v1",
+  "status": "CHAMPION",
+  "metrics": {
+    "ROC_AUC": 0.784,
+    "PR_AUC": 0.5587,
+    "Accuracy": 0.7525,
+    "F1_Score": 0.5297,
+    "Precision": 0.457,
+    "Recall": 0.6299,
+    "Brier_Score": 0.1754,
+    "Confusion_Matrix": [
+      [
+        2943,
+        795
+      ],
+      [
+        393,
+        669
+      ]
+    ],
+    "true_negatives": 2943,
+    "false_positives": 795,
+    "false_negatives": 393,
+    "true_positives": 669,
+    "default_prevalence": 0.2213,
+    "n_test": 4800,
+    "review_threshold": 0.5,
+    "split": "fixed stratified holdout",
+    "train_rows": 19200,
+    "fit_rows": 19200,
+    "test_rows": 4800,
+    "model_type": "xgboost",
+    "augmentation": {
+      "synthetic_rows": 0,
+      "original_rows": 19200,
+      "augmented_rows": 19200
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "metrics": {
+    "ROC_AUC": 0.8499,
+    "PR_AUC": 0.8017,
+    "Accuracy": 0.7864,
+    "F1_Score": 0.7223,
+    "Precision": 0.7223,
+    "Recall": 0.7224,
+    "Brier_Score": 0.1532,
+    "Confusion_Matrix": [
+      [
+        6103,
+        1282
+      ],
+      [
+        1281,
+        3334
+      ]
+    ],
+    "true_negatives": 6103,
+    "false_positives": 1282,
+    "false_negatives": 1281,
+    "true_positives": 3334,
+    "default_prevalence": 0.3846,
+    "n_test": 12000,
+    "review_threshold": 0.5,
+    "split": "fixed stratified holdout",
+    "train_rows": 48000,
+    "fit_rows": 48000,
+    "test_rows": 12000,
+    "model_type": "xgboost",
+    "augmentation": {
+      "synthetic_rows": 0,
+      "original_rows": 48000,
+      "augmented_rows": 48000
+    }
+  },
+  "mapping": {
+    "client_id": "client_id",
+    "LIMIT_BAL": "LIMIT_BAL",
+    "AGE": "AGE",
+    "EDUCATION": "EDUCATION",
+    "MARRIAGE": "MARRIAGE",
+    "PAY_0": "PAY_0",
+    "PAY_2": "PAY_2",
+    "PAY_3": "PAY_3",
+    "PAY_4": "PAY_4",
+    "PAY_5": "PAY_5",
+    "PAY_6": "PAY_6",
+    "BILL_AMT1": "BILL_AMT1",
+    "BILL_AMT2": "BILL_AMT2",
+    "BILL_AMT3": "BILL_AMT3",
+    "BILL_AMT4": "BILL_AMT4",
+    "BILL_AMT5": "BILL_AMT5",
+    "BILL_AMT6": "BILL_AMT6",
+    "PAY_AMT1": "PAY_AMT1",
+    "PAY_AMT2": "PAY_AMT2",
+    "PAY_AMT3": "PAY_AMT3",
+    "PAY_AMT4": "PAY_AMT4",
+    "PAY_AMT5": "PAY_AMT5",
+    "PAY_AMT6": "PAY_AMT6",
+    "default_next_month": "default_next_month"
+  },
+  "model_type": "xgboost",
+  "service": "payment_risk",
+  "source_files": [
+    "combined_credit_training_60000.csv"
+  ],
+  "scope": "platform",
+  "available_to_all_companies": true,
+  "company_id": "__platform__",
+  "task": "credit",
+  "model_file": "model_20260903T155733549699Z.joblib",
+  "version": "20260903T155733549699Z",
+  "status": "CHAMPION",
+  "created_at_utc": "2026-09-03T15:57:33.568591+00:00",
+  "activated_at_utc": "2026-09-03T15:57:33.581090+00:00",
+  "archived_at_utc": null,
+  "deleted_at_utc": null,
+  "activated_by": "administrator"
+}
