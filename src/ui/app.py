@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
+import streamlit.components.v1 as components
 from src.ui.theme import apply_dark_theme
 from src.ui.login import render_login
 from src.ui.components.sidebar import render_sidebar
@@ -60,3 +61,39 @@ profiles.save(profiles.load(company))
 
 # -- Route to selected page ---------------------------------------------------
 PAGE_MAP[selected_page].render(registry, recommender, profiles, company)
+
+# -- Fix sidebar expand button: inject JS that forces it visible/clickable ---
+components.html(
+    """<script>
+    (function fixSidebar() {
+        // Try every known selector for the sidebar expand/collapse button
+        var sels = [
+            '[data-testid="stSidebarCollapseButton"]',
+            '[data-testid="stSidebarCollapsedControl"]',
+            '[data-testid="collapsedControl"]',
+            'button[title="Open sidebar"]',
+            'button[title="Close sidebar"]',
+            '[aria-label="Open sidebar"]',
+            '[aria-label="Close sidebar"]',
+            '.collapsed-icon',
+            '.expanded-icon',
+        ];
+        sels.forEach(function(sel) {
+            document.querySelectorAll(sel).forEach(function(el) {
+                el.style.cssText = 'z-index:9999 !important; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; display:flex !important; position:relative !important; cursor:pointer !important;';
+                // Also fix parent containers that might hide it
+                var p = el.parentElement;
+                for (var i = 0; i < 5 && p; i++) {
+                    p.style.cssText += ' visibility:visible !important; opacity:1 !important; pointer-events:auto !important; overflow:visible !important; z-index:9999 !important;';
+                    p = p.parentElement;
+                }
+            });
+        });
+        // Also force the sidebar section section to not clip children
+        document.querySelectorAll('[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"]').forEach(function(el) {
+            el.style.overflow = 'visible';
+        });
+    })();
+    </script>""",
+    height=0,
+)
