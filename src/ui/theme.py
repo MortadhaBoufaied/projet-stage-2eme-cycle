@@ -33,13 +33,11 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
 [data-testid="stHeader"] { background: var(--bg) !important; border-bottom: 1px solid var(--border) !important; }
 [data-testid="stToolbar"] { display: none !important; }
 
-/* Sidebar */
+/* Sidebar -- only cosmetic overrides, never touch layout/width/transform */
 [data-testid="stSidebar"] {
   background: var(--surface) !important;
   border-right: 1px solid var(--border) !important;
-  width: 240px !important;
 }
-[data-testid="stSidebar"] * { color: var(--text) !important; }
 [data-testid="stSidebar"] [data-testid="stSidebarNav"] { padding-top: 0 !important; }
 [data-testid="stSidebar"] .stButton > button {
   background: transparent !important;
@@ -48,7 +46,6 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
   text-align: left !important;
   padding: 0.5rem 1rem !important;
   border-radius: 8px !important;
-  width: 100% !important;
   height: 40px !important;
   display: flex !important;
   align-items: center !important;
@@ -64,57 +61,6 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
 [data-testid="stSidebar"] .stButton > button:focus {
   box-shadow: none !important;
   outline: none !important;
-}
-
-/* Sidebar expand/collapse chevron button -- covers all Streamlit versions */
-[data-testid="stSidebarCollapseButton"],
-[data-testid="stSidebarCollapsedControl"],
-button[title="Open sidebar"],
-button[title="Close sidebar"] {
-  background: var(--surface-2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
-  color: var(--text) !important;
-  width: 28px !important;
-  height: 28px !important;
-  padding: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  position: relative !important;
-  z-index: 999 !important;
-  cursor: pointer !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-[data-testid="stSidebarCollapseButton"] svg,
-[data-testid="stSidebarCollapsedControl"] svg,
-button[title="Open sidebar"] svg,
-button[title="Close sidebar"] svg {
-  fill: var(--text) !important;
-  width: 14px !important;
-  height: 14px !important;
-}
-[data-testid="stSidebarCollapseButton"]:hover,
-[data-testid="stSidebarCollapsedControl"]:hover,
-button[title="Open sidebar"]:hover,
-button[title="Close sidebar"]:hover {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-}
-[data-testid="stSidebarCollapseButton"]:hover svg,
-[data-testid="stSidebarCollapsedControl"]:hover svg,
-button[title="Open sidebar"]:hover svg,
-button[title="Close sidebar"]:hover svg {
-  fill: #fff !important;
-}
-
-/* Ensure the collapsed sidebar control container is visible and clickable */
-[data-testid="stSidebarCollapsedControl"] {
-  display: block !important;
-  width: auto !important;
-  height: auto !important;
-  overflow: visible !important;
 }
 
 /* Content area */
