@@ -66,6 +66,36 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
   outline: none !important;
 }
 
+/* Sidebar expand/collapse chevron button */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarExpandButton"] {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="stSidebarExpandButton"] svg {
+  fill: var(--text) !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+[data-testid="stSidebarCollapseButton"]:hover,
+[data-testid="stSidebarExpandButton"]:hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+[data-testid="stSidebarCollapseButton"]:hover svg,
+[data-testid="stSidebarExpandButton"]:hover svg {
+  fill: #fff !important;
+}
+
 /* Content area */
 .block-container {
   max-width: 1400px !important;

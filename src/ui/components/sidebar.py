@@ -1,15 +1,17 @@
 from __future__ import annotations
 import streamlit as st
 
-# ASCII labels for st.button (HTML does not render inside button labels).
+# Icon glyph + label for each page. The glyph is a Unicode character that
+# renders natively in st.button labels (HTML is escaped there). CSS in
+# theme.py styles .nav-icon as a distinct icon-sized span.
 PAGES = [
-    ("dashboard", "D", "Dashboard"),
-    ("credit",    "C", "Credit risk"),
-    ("demand",    "M", "Demand"),
-    ("training",  "T", "Training"),
-    ("policies",  "P", "Policies"),
-    ("history",   "H", "History"),
-    ("help",      "?", "Help"),
+    ("dashboard", "▣", "Dashboard"),     # black square with square inset
+    ("credit",    "↗", "Credit risk"),    # north east arrow
+    ("demand",    "↘", "Demand"),          # south east arrow
+    ("training",  "⚒", "Training"),       # hammer and pick
+    ("policies",  "≡", "Policies"),       # trident eq
+    ("history",   "⧖", "History"),        # hourglass
+    ("help",      "⍰", "Help"),           # circled digit 1
 ]
 
 PAGE_TITLES = {key: label for key, _, label in PAGES}
@@ -32,10 +34,10 @@ def render_sidebar() -> str:
             unsafe_allow_html=True,
         )
 
-        # Navigation buttons
+        # Navigation buttons -- glyph renders as plain text in button label.
         for key, icon, label in PAGES:
             is_active = key == current
-            btn_label = f"[{icon}]  {label}"
+            btn_label = f"{icon}  {label}"
             if st.button(
                 btn_label,
                 key=f"nav_{key}",
