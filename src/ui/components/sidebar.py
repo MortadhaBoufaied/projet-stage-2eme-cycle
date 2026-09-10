@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.services.auth import current_user, sign_out
+from src.services.auth import current_user, current_role, current_company, sign_out
 
-# Navigation is grouped by user intent rather than technical implementation.
-NAV_GROUPS = [
+# Navigation grouped by user intent.  Admin sees all groups; company users
+# see only the "Workspace" group (analysis pages).
+NAV_GROUPS_ADMIN = [
     (
         "Workspace",
         [
@@ -30,9 +31,27 @@ NAV_GROUPS = [
     ),
 ]
 
+NAV_GROUPS_COMPANY = [
+    (
+        "Workspace",
+        [
+            ("dashboard", "▣", "Dashboard", "Overview and analysis history"),
+            ("credit", "↗", "Credit risk", "Assess credit applications"),
+            ("demand", "↘", "Demand", "Forecast historical demand"),
+        ],
+    ),
+]
+
+# All pages known to the app, for validating the current selection
+ALL_PAGE_KEYS = {item[0] for _, items in NAV_GROUPS_ADMIN for item in items}
+
+# Company-visible pages, for redirecting if a company user lands on a
+# restricted page (e.g. via a stale bookmark).
+COMPANY_PAGE_KEYS = {item[0] for _, items in NAV_GROUPS_COMPANY for item in items}
+
 PAGE_TITLES = {
     item[0]: item[2]
-    for _, items in NAV_GROUPS
+    for _, items in NAV_GROUPS_ADMIN
     for item in items
 }
 
@@ -56,12 +75,22 @@ def render_sidebar() -> str:
         st.session_state["current_page"] = "dashboard"
 
     current = st.session_state["current_page"]
+    role = current_role()
     user = current_user() or "admin"
+    company = current_company()
     initial = user[0].upper()
+    is_admin = role == "admin"
+    role_label = "Administrator" if is_admin else "Company"
+    nav_groups = NAV_GROUPS_ADMIN if is_admin else NAV_GROUPS_COMPANY
+
+    # Redirect company users away from admin-only pages (e.g. stale bookmark)
+    if not is_admin and current not in COMPANY_PAGE_KEYS:
+        st.session_state["current_page"] = "dashboard"
+        current = "dashboard"
 
     with st.sidebar:
         st.markdown(
-            """
+            f"""
             <div class="sidebar-brand">
                 <div class="sidebar-brand-mark">F</div>
                 <div>
@@ -71,14 +100,14 @@ def render_sidebar() -> str:
             </div>
             <div class="sidebar-workspace">
                 <span class="sidebar-workspace-label">WORKSPACE</span>
-                <strong>Administrator</strong>
-                <span>admin_company</span>
+                <strong>{role_label}</strong>
+                <span>{company}</span>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        for group_name, items in NAV_GROUPS:
+        for group_name, items in nav_groups:
             st.markdown(f'<div class="sidebar-section-label">{group_name}</div>', unsafe_allow_html=True)
             for key, icon, label, description in items:
                 _render_nav_item(key, icon, label, description, current)
@@ -105,7 +134,7 @@ def render_sidebar() -> str:
                 <div class="header-avatar">{initial}</div>
                 <div class="header-user-copy">
                     <strong>{user}</strong>
-                    <span>Administrator</span>
+                    <span>{role_label}</span>
                 </div>
             </div>
         </div>

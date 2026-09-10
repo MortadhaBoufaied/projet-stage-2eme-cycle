@@ -86,7 +86,7 @@ def render(registry, recommender, profiles, company) -> None:
     ):
         try:
             with st.status("Running portfolio analysis...", expanded=True) as status:
-                model, _ = registry.load_latest(company, "credit")
+                model, _ = registry.load_latest_with_admin_fallback(company, "credit")
                 p, tiers = model.predict_risk(mapped)
                 explanations = model.explain(mapped)
 

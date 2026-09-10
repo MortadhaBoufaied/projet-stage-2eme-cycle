@@ -326,6 +326,13 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                     hyperparams_map=hp_map,
                     auto_threshold=optimize_thr,
                 )
+                st.write("Saving best model version")
+                registry.save(company, "credit", model, {
+                    "metrics": met, "mapping": mp,
+                    "data_summary": quality_report(mapped),
+                    "experiment": f"train-all ({best_name})",
+                    "model_type": best_name,
+                })
                 status.update(label=f"Best model: {best_name}", state="complete")
             st.session_state[f"credit_training_{company}"] = (mapped, mp, best_name, review_h, high_h, met)
             st.success(f"All models trained! Best: **{best_name}**")
@@ -469,6 +476,13 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
         try:
             with st.status("Training all forecast models", expanded=True) as status:
                 model, met, best_name, all_metrics = train_all_forecast(mapped, hyperparams_map=hp_map)
+                st.write("Saving best model version")
+                registry.save(company, "forecast", model, {
+                    "metrics": met, "mapping": mp,
+                    "data_summary": quality_report(mapped),
+                    "experiment": f"train-all ({best_name})",
+                    "model_type": best_name,
+                })
                 status.update(label=f"Best model: {best_name}", state="complete")
             metric_cards(met, ["MAE", "RMSE", "WAPE", "R2"])
             st.success(f"All forecast models trained! Best: **{best_name}**")

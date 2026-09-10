@@ -370,7 +370,7 @@ class TestLoginPage:
 
 class TestSidebar:
     def test_sidebar_renders_with_navigation(self):
-        """Verify sidebar renders with grouped navigation items."""
+        """Verify sidebar renders with navigation items (company view: 3 items)."""
 
         def page():
             from src.ui.components.sidebar import render_sidebar
@@ -379,12 +379,49 @@ class TestSidebar:
         at = AppTest.from_function(page)
         at.run(timeout=15)
         assert not at.exception
-        buttons = at.button
-        button_labels = [b.label for b in buttons]
-        # Should have 7 nav items + 1 sign out button
+        button_labels = [b.label for b in at.button]
+        # Company view (default when no session state): Dashboard, Credit, Demand + Sign out
         assert any("Dashboard" in label for label in button_labels)
         assert any("Credit" in label for label in button_labels)
         assert any("Sign out" in label for label in button_labels)
+
+    def test_sidebar_company_view_hides_admin_pages(self):
+        """Company users should not see Training, Policies, History, Help."""
+
+        def page():
+            from src.ui.components.sidebar import render_sidebar
+            render_sidebar()
+
+        at = AppTest.from_function(page)
+        at.run(timeout=15)
+        assert not at.exception
+        button_labels = [b.label for b in at.button]
+        # Company view should NOT have admin-only pages
+        assert not any("Training" in label for label in button_labels)
+        assert not any("Policies" in label for label in button_labels)
+        assert not any("History" in label for label in button_labels)
+
+    def test_sidebar_admin_view_shows_all_pages(self):
+        """Admin users should see all navigation items."""
+
+        def page():
+            import streamlit as st
+            from src.services.auth import ROLE_KEY, COMPANY_KEY
+            st.session_state[ROLE_KEY] = "admin"
+            st.session_state[COMPANY_KEY] = "admin_company"
+            from src.ui.components.sidebar import render_sidebar
+            render_sidebar()
+
+        at = AppTest.from_function(page)
+        at.run(timeout=15)
+        assert not at.exception
+        button_labels = [b.label for b in at.button]
+        # Admin view should have all pages
+        assert any("Dashboard" in label for label in button_labels)
+        assert any("Credit" in label for label in button_labels)
+        assert any("Training" in label for label in button_labels)
+        assert any("Policies" in label for label in button_labels)
+        assert any("History" in label for label in button_labels)
 
     def test_sidebar_shows_brand(self):
         """Verify sidebar shows the FDS brand."""

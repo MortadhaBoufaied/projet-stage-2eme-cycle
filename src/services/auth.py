@@ -3,40 +3,19 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-import sqlite3
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import streamlit as st
 
 from src.config import ADMIN_PASSWORD, ADMIN_USERNAME, SESSION_MINUTES
+from src.services.db import _get_db
 
 # -- Session keys -----------------------------------------------------------
 AUTH_KEY = "finance_authenticated"
 USER_KEY = "finance_user"
 EXPIRY_KEY = "finance_session_expiry"
-
-# -- SQLite user store ------------------------------------------------------
-_DB_DIR = Path(__file__).resolve().parents[2] / "artifacts"
-_DB_PATH = _DB_DIR / "users.db"
-
-
-def _get_db() -> sqlite3.Connection:
-    """Return a connection to the users database. Creates the table on first use."""
-    _DB_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(_DB_PATH), timeout=5)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS users ("
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  username TEXT UNIQUE NOT NULL,"
-        "  password_hash TEXT NOT NULL,"
-        "  salt TEXT NOT NULL,"
-        "  created_at TEXT NOT NULL"
-        ")"
-    )
-    conn.commit()
-    return conn
+ROLE_KEY = "finance_role"
+COMPANY_KEY = "finance_company"
 
 
 def _hash_password(password: str, salt: bytes | None = None) -> tuple[bytes, bytes]:
@@ -83,12 +62,17 @@ def _verify_registered_user(username: str, password: str) -> bool:
 def sign_in(username: str, password: str) -> bool:
     """Authenticate against admin credentials or registered users.
     Sets session state on success. Returns True if valid."""
-    valid = _verify_admin(username, password) or _verify_registered_user(username, password)
-    if valid:
-        st.session_state[AUTH_KEY] = True
-        st.session_state[USER_KEY] = username.strip()
-        st.session_state[EXPIRY_KEY] = datetime.now(timezone.utc) + timedelta(minutes=SESSION_MINUTES)
-    return valid
+    is_admin = _verify_admin(username, password)
+    is_registered = not is_admin and _verify_registered_user(username, password)
+    if not is_admin and not is_registered:
+        return False
+
+    st.session_state[AUTH_KEY] = True
+    st.session_state[USER_KEY] = username.strip()
+    st.session_state[EXPIRY_KEY] = datetime.now(timezone.utc) + timedelta(minutes=SESSION_MINUTES)
+    st.session_state[ROLE_KEY] = "admin" if is_admin else "company"
+    st.session_state[COMPANY_KEY] = "admin_company" if is_admin else username.strip()
+    return True
 
 
 def sign_up(username: str, password: str) -> tuple[bool, str]:
@@ -115,7 +99,8 @@ def sign_up(username: str, password: str) -> tuple[bool, str]:
 
         digest, salt = _hash_password(password)
         conn.execute(
-            "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (username, password_hash, salt, role, created_at)"
+            " VALUES (?, ?, ?, 'company', ?)",
             (username.lower(), digest.hex(), salt.hex(), datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
@@ -142,7 +127,17 @@ def current_user() -> str:
     return str(st.session_state.get(USER_KEY, ""))
 
 
+def current_role() -> str:
+    """Return the role of the currently authenticated user ('admin' or 'company')."""
+    return str(st.session_state.get(ROLE_KEY, "company"))
+
+
+def current_company() -> str:
+    """Return the company identifier for the currently authenticated user."""
+    return str(st.session_state.get(COMPANY_KEY, "admin_company"))
+
+
 def sign_out() -> None:
     """Clear all authentication session state."""
-    for key in (AUTH_KEY, USER_KEY, EXPIRY_KEY):
+    for key in (AUTH_KEY, USER_KEY, EXPIRY_KEY, ROLE_KEY, COMPANY_KEY):
         st.session_state.pop(key, None)

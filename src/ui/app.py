@@ -31,7 +31,7 @@ from src.ui.theme import apply_dark_theme
 from src.ui.login import render_login
 from src.ui.components.sidebar import render_sidebar
 from src.ui.pages import PAGE_MAP
-from src.services.auth import is_authenticated
+from src.services.auth import is_authenticated, current_role, current_company
 from src.services.model_registry import ModelRegistry
 from src.agents.recommender import RecommendationEngine
 from src.services.company_profile import CompanyProfileStore
@@ -58,12 +58,13 @@ selected_page = render_sidebar()
 
 
 # -- Clear stale result keys --------------------------------------------------
+# Only remove prediction result keys on page navigation.  Training and
+# augmentation keys must survive reruns so that trained-model results
+# remain visible when the user switches tabs and returns.
 keys_to_remove = [
     k
     for k in st.session_state.keys()
-    if k.startswith(
-        ("credit_result_", "forecast_result_", "credit_training_", "augmentation_")
-    )
+    if k.startswith(("credit_result_", "forecast_result_"))
 ]
 for k in keys_to_remove:
     del st.session_state[k]
@@ -73,7 +74,12 @@ for k in keys_to_remove:
 registry = ModelRegistry()
 recommender = RecommendationEngine()
 profiles = CompanyProfileStore()
-company = "admin_company"
+
+# Derive company from the authenticated user's session state.
+# Admin (.env login) uses "admin_company"; registered users get their
+# own company keyed by username.
+company = current_company()
+
 registry.company_dir(company, create=True)
 profiles.save(profiles.load(company))
 

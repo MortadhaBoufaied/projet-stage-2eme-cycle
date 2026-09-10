@@ -85,7 +85,7 @@ def render(registry, recommender, profiles, company) -> None:
     ):
         try:
             with st.status("Evaluating demand signals...", expanded=True) as status:
-                model, _ = registry.load_latest(company, "forecast")
+                model, _ = registry.load_latest_with_admin_fallback(company, "forecast")
                 featured = model.create_features(mapped)
                 met = model.evaluate_featured(featured)
                 result = model.detect_anomalies(mapped)

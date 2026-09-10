@@ -21,17 +21,19 @@ import pytest
 def _fresh_db(tmp_path: Path):
     """Return an auth module bound to a temporary SQLite database.
 
-    Redirects the module-level _DB_DIR and _DB_PATH so every call to
-    _get_db() uses an isolated database under *tmp_path*.  Because
-    *tmp_path* is per-test and cleaned up by pytest, there is no need
-    to restore the original values.
+    Redirects the module-level _DB_DIR and _DB_PATH in ``db.py`` so every
+    call to ``_get_db()`` uses an isolated database under *tmp_path*.
+    Because *tmp_path* is per-test and cleaned up by pytest, there is no
+    need to restore the original values.
     """
     db_dir = tmp_path / "artifacts"
     db_dir.mkdir()
 
+    import src.services.db as db_mod
+    db_mod._DB_DIR = db_dir
+    db_mod._DB_PATH = db_dir / "users.db"
+
     import src.services.auth as auth_mod
-    auth_mod._DB_DIR = db_dir
-    auth_mod._DB_PATH = db_dir / "users.db"
     return auth_mod, db_dir
 
 
@@ -164,6 +166,18 @@ class TestSignIn:
         assert fake_state.get(auth.AUTH_KEY) is True
         assert fake_state.get(auth.USER_KEY) == "alice"
         assert auth.EXPIRY_KEY in fake_state
+        assert fake_state.get(auth.ROLE_KEY) == "company"
+        assert fake_state.get(auth.COMPANY_KEY) == "alice"
+
+    def test_admin_session_keys_set_on_success(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        monkeypatch.setattr("src.services.auth.ADMIN_USERNAME", "admin")
+        monkeypatch.setattr("src.services.auth.ADMIN_PASSWORD", "adminpass")
+        auth.sign_in("admin", "adminpass")
+        assert fake_state.get(auth.ROLE_KEY) == "admin"
+        assert fake_state.get(auth.COMPANY_KEY) == "admin_company"
 
     def test_session_keys_not_set_on_failure(self, tmp_path, monkeypatch):
         auth, _ = _fresh_db(tmp_path)
@@ -210,12 +224,16 @@ class TestSessionManagement:
             auth.AUTH_KEY: True,
             auth.USER_KEY: "alice",
             auth.EXPIRY_KEY: datetime.now(timezone.utc) + timedelta(minutes=10),
+            auth.ROLE_KEY: "company",
+            auth.COMPANY_KEY: "alice",
         }
         monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
         auth.sign_out()
         assert auth.AUTH_KEY not in fake_state
         assert auth.USER_KEY not in fake_state
         assert auth.EXPIRY_KEY not in fake_state
+        assert auth.ROLE_KEY not in fake_state
+        assert auth.COMPANY_KEY not in fake_state
 
     def test_current_user_returns_username(self, tmp_path, monkeypatch):
         auth, _ = _fresh_db(tmp_path)
@@ -240,6 +258,59 @@ class TestSessionManagement:
         monkeypatch.setattr("src.services.auth.ADMIN_USERNAME", "")
         monkeypatch.setattr("src.services.auth.ADMIN_PASSWORD", "")
         assert auth_mod.credentials_configured() is False
+
+    def test_current_role_returns_company_for_registered_user(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {auth.ROLE_KEY: "company"}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_role() == "company"
+
+    def test_current_role_returns_admin_for_admin_user(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {auth.ROLE_KEY: "admin"}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_role() == "admin"
+
+    def test_current_role_defaults_to_company(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_role() == "company"
+
+    def test_current_company_returns_username_for_registered_user(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {auth.COMPANY_KEY: "alice"}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_company() == "alice"
+
+    def test_current_company_returns_admin_company_for_admin(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {auth.COMPANY_KEY: "admin_company"}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_company() == "admin_company"
+
+    def test_current_company_defaults_to_admin_company(self, tmp_path, monkeypatch):
+        auth, _ = _fresh_db(tmp_path)
+        fake_state = {}
+        monkeypatch.setattr("src.services.auth.st.session_state", fake_state)
+        assert auth.current_company() == "admin_company"
+
+    def test_users_table_has_role_column(self, tmp_path):
+        auth, db_dir = _fresh_db(tmp_path)
+        auth.sign_up("alice", "secure123")
+        conn = sqlite3.connect(str(db_dir / "users.db"))
+        columns = conn.execute("PRAGMA table_info(users)").fetchall()
+        conn.close()
+        col_names = [c[1] for c in columns]
+        assert "role" in col_names
+
+    def test_registered_user_role_defaults_to_company(self, tmp_path):
+        auth, db_dir = _fresh_db(tmp_path)
+        auth.sign_up("alice", "secure123")
+        conn = sqlite3.connect(str(db_dir / "users.db"))
+        row = conn.execute("SELECT role FROM users WHERE username='alice'").fetchone()
+        conn.close()
+        assert row[0] == "company"
 
 
 # ---------------------------------------------------------------------------
