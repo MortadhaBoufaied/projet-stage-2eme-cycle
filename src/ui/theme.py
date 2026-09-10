@@ -67,6 +67,8 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
 .block-container {
   max-width: 1400px !important;
   padding: 0 2rem 4rem !important;
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 /* Headings */
@@ -245,7 +247,13 @@ hr { border-color: var(--border) !important; }
 /* Remove Streamlit branding */
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
-header[data-testid="stHeader"] { background: var(--bg) !important; }
+header[data-testid="stHeader"] {
+  background: var(--bg) !important;
+  z-index: 0 !important;
+}
+[data-testid="stAppHeader"] {
+  z-index: 0 !important;
+}
 
 /* Custom utility classes */
 .page-header { margin-bottom: 1.5rem; }
