@@ -49,7 +49,7 @@ def field_mapping(df: pd.DataFrame, fields: list[str], key: str) -> tuple[dict, 
         c3.metric("Missing", missing)
         c4.metric("Invalid", invalid)
         st.dataframe(report, use_container_width=True, hide_index=True,
-                      column_config={"Confidence": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1, format="%.")})
+                      column_config={"Confidence": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1, format="%.0f%%")})
         unused = [c for c in df.columns if c not in {v for v in result.values() if v}]
         if unused:
             st.caption("Unused source columns: " + ", ".join(map(str, unused)))

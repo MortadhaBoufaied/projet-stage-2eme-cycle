@@ -85,7 +85,7 @@ def render(registry, recommender, profiles, company) -> None:
                 st.session_state[f"credit_result_{company}"] = result
                 status.update(label="Analysis complete", state="complete")
         except Exception as e:
-            st.exception(f"Portfolio analysis failed: {e}")
+            st.error(f"Portfolio analysis failed: {e}")
 
     # -- Display results -----------------------------------------------------
     result = st.session_state.get(f"credit_result_{company}")

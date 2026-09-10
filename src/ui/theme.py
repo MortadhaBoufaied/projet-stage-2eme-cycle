@@ -31,7 +31,6 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
 }
 
 [data-testid="stHeader"] { background: var(--bg) !important; border-bottom: 1px solid var(--border) !important; }
-[data-testid="stToolbar"] { display: none !important; }
 
 /* Sidebar -- colors only, zero layout overrides */
 [data-testid="stSidebar"] {
@@ -237,6 +236,12 @@ header[data-testid="stHeader"] {
   background: var(--bg) !important;
 }
 
+/* Status banners used by status_banner() */
+.status-success { background: var(--surface); border-left: 4px solid var(--success); color: var(--success); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.5rem 0; }
+.status-warning { background: var(--surface); border-left: 4px solid var(--warning); color: var(--warning); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.5rem 0; }
+.status-error   { background: var(--surface); border-left: 4px solid var(--danger);  color: var(--danger);  border-radius: 8px; padding: 0.75rem 1rem; margin: 0.5rem 0; }
+.status-info    { background: var(--surface); border-left: 4px solid var(--accent);  color: var(--accent);  border-radius: 8px; padding: 0.75rem 1rem; margin: 0.5rem 0; }
+
 /* Custom utility classes */
 .page-header { margin-bottom: 1.5rem; }
 .page-header h1 { margin-bottom: 0.3rem !important; }
@@ -261,8 +266,179 @@ header[data-testid="stHeader"] {
 """,
         unsafe_allow_html=True,
     )
+    st.markdown(_EXTRA_NAV_CSS, unsafe_allow_html=True)
 
 
 def apply_light_theme() -> None:
     """Backward-compatible alias — calls dark theme."""
     apply_dark_theme()
+
+# --- Sidebar / navigation UX ------------------------------------------------
+# Keep Streamlit responsible for layout; only style the navigation hierarchy.
+_EXTRA_NAV_CSS = """
+<style>
+[data-testid="stSidebar"] > div:first-child {
+  padding-top: 1rem !important;
+}
+[data-testid="stSidebar"] .block-container {
+  padding: 0.75rem 0.9rem 1rem !important;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.25rem 0.35rem 1rem;
+}
+.sidebar-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.sidebar-brand-name {
+  color: var(--text) !important;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.sidebar-brand-subtitle {
+  color: var(--text-muted) !important;
+  font-size: 0.65rem;
+  margin-top: 0.18rem;
+  line-height: 1.2;
+}
+.sidebar-workspace {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem;
+  margin: 0.15rem 0 1rem;
+}
+.sidebar-workspace strong,
+.sidebar-workspace span {
+  display: block;
+}
+.sidebar-workspace strong {
+  color: var(--text) !important;
+  font-size: 0.8rem;
+  margin: 0.12rem 0;
+}
+.sidebar-workspace span:last-child {
+  color: var(--text-muted) !important;
+  font-size: 0.72rem;
+}
+.sidebar-workspace-label,
+.sidebar-section-label {
+  color: var(--text-muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 0.62rem;
+}
+.sidebar-section-label {
+  padding: 0.55rem 0.35rem 0.35rem;
+}
+[data-testid="stSidebar"] .stButton {
+  margin-bottom: 0.14rem !important;
+}
+[data-testid="stSidebar"] .stButton > button {
+  min-height: 38px !important;
+  padding: 0.45rem 0.7rem !important;
+  font-size: 0.82rem !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] {
+  box-shadow: inset 3px 0 0 var(--accent) !important;
+}
+.sidebar-footer-divider {
+  border-top: 1px solid var(--border);
+  margin: 1rem 0 0.8rem;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.25rem 0.55rem;
+}
+.sidebar-user strong,
+.sidebar-user span {
+  display: block;
+}
+.sidebar-user strong {
+  color: var(--text) !important;
+  font-size: 0.76rem;
+}
+.sidebar-user span {
+  color: var(--text-muted) !important;
+  font-size: 0.67rem;
+  margin-top: 0.1rem;
+}
+.sidebar-avatar,
+.header-avatar {
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.sidebar-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 0.72rem;
+}
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 0 0.9rem;
+  margin-bottom: 1.45rem;
+  border-bottom: 1px solid var(--border);
+}
+.app-breadcrumb {
+  color: var(--text-muted) !important;
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-bottom: 0.12rem;
+}
+.app-header h1 {
+  margin: 0 !important;
+  font-size: 1.18rem !important;
+}
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.header-user-copy strong,
+.header-user-copy span {
+  display: block;
+}
+.header-user-copy strong {
+  color: var(--text) !important;
+  font-size: 0.75rem;
+}
+.header-user-copy span {
+  color: var(--text-muted) !important;
+  font-size: 0.65rem;
+  margin-top: 0.08rem;
+}
+.header-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 0.76rem;
+}
+@media (max-width: 760px) {
+  .header-user-copy { display: none; }
+  .app-breadcrumb { display: none; }
+}
+</style>
+"""

@@ -1,74 +1,112 @@
 from __future__ import annotations
+
 import streamlit as st
 
-# Icon glyph + label for each page. The glyph is a Unicode character that
-# renders natively in st.button labels (HTML is escaped there). CSS in
-# theme.py styles .nav-icon as a distinct icon-sized span.
-PAGES = [
-    ("dashboard", "▣", "Dashboard"),     # black square with square inset
-    ("credit",    "↗", "Credit risk"),    # north east arrow
-    ("demand",    "↘", "Demand"),          # south east arrow
-    ("training",  "⚒", "Training"),       # hammer and pick
-    ("policies",  "≡", "Policies"),       # trident eq
-    ("history",   "⧖", "History"),        # hourglass
-    ("help",      "⍰", "Help"),           # circled digit 1
+from src.services.auth import current_user, sign_out
+
+# Navigation is grouped by user intent rather than technical implementation.
+NAV_GROUPS = [
+    (
+        "Workspace",
+        [
+            ("dashboard", "▣", "Dashboard", "Overview and model status"),
+            ("credit", "↗", "Credit risk", "Assess credit applications"),
+            ("demand", "↘", "Demand", "Forecast historical demand"),
+        ],
+    ),
+    (
+        "Models & governance",
+        [
+            ("training", "⚒", "Training", "Train and compare models"),
+            ("policies", "≡", "Policies", "Business rules and thresholds"),
+            ("history", "⧖", "History", "Review model versions"),
+        ],
+    ),
+    (
+        "Support",
+        [
+            ("help", "?", "Help", "How the decision workflow works"),
+        ],
+    ),
 ]
 
-PAGE_TITLES = {key: label for key, _, label in PAGES}
+PAGE_TITLES = {
+    item[0]: item[2]
+    for _, items in NAV_GROUPS
+    for item in items
+}
+
+
+def _render_nav_item(key: str, icon: str, label: str, description: str, current: str) -> None:
+    is_active = key == current
+    if st.button(
+        f"{icon}  {label}",
+        key=f"nav_{key}",
+        use_container_width=True,
+        type="primary" if is_active else "secondary",
+        help=description,
+    ):
+        st.session_state["current_page"] = key
+        st.rerun()
 
 
 def render_sidebar() -> str:
-    """Render the icon sidebar and header bar. Returns the selected page key."""
+    """Render grouped navigation and the content header; return the selected page key."""
     if "current_page" not in st.session_state:
         st.session_state["current_page"] = "dashboard"
 
     current = st.session_state["current_page"]
+    user = current_user() or "admin"
+    initial = user[0].upper()
 
     with st.sidebar:
-        # Logo
         st.markdown(
-            '<div class="sidebar-logo">'
-            '<p style="font-size:1.6rem; font-weight:700; margin:0;">FDS</p>'
-            '<p style="font-size:0.7rem; color:var(--text-muted); margin:0;">Finance Decision Studio</p>'
-            '</div>',
+            """
+            <div class="sidebar-brand">
+                <div class="sidebar-brand-mark">F</div>
+                <div>
+                    <div class="sidebar-brand-name">FDS</div>
+                    <div class="sidebar-brand-subtitle">Finance Decision Studio</div>
+                </div>
+            </div>
+            <div class="sidebar-workspace">
+                <span class="sidebar-workspace-label">WORKSPACE</span>
+                <strong>Administrator</strong>
+                <span>admin_company</span>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
-        # Navigation buttons -- glyph renders as plain text in button label.
-        for key, icon, label in PAGES:
-            is_active = key == current
-            btn_label = f"{icon}  {label}"
-            if st.button(
-                btn_label,
-                key=f"nav_{key}",
-                use_container_width=True,
-                type="primary" if is_active else "secondary",
-            ):
-                st.session_state["current_page"] = key
-                st.rerun()
+        for group_name, items in NAV_GROUPS:
+            st.markdown(f'<div class="sidebar-section-label">{group_name}</div>', unsafe_allow_html=True)
+            for key, icon, label, description in items:
+                _render_nav_item(key, icon, label, description, current)
 
-        # Divider + sign out
-        st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
-        from src.services.auth import current_user, sign_out
-        user = current_user() or "admin"
-        st.caption(f"Signed in as {user}")
+        st.markdown('<div class="sidebar-footer-divider"></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="sidebar-user"><div class="sidebar-avatar">{initial}</div>'
+            f'<div><strong>{user}</strong><span>Signed in</span></div></div>',
+            unsafe_allow_html=True,
+        )
         if st.button("Sign out", key="sidebar_signout", use_container_width=True):
             sign_out()
             st.rerun()
 
-    # Header bar
     title = PAGE_TITLES.get(current, "Finance Decision Studio")
-    initial = (current_user() or "admin")[0].upper()
-
     st.markdown(
         f"""
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:0.6rem 0 1rem; border-bottom:1px solid var(--border); margin-bottom:1.5rem;">
-            <h1 style="margin:0; font-size:1.4rem;">{title}</h1>
-            <div style="display:flex; align-items:center; gap:0.75rem;">
-                <div style="width:32px; height:32px; border-radius:50%; background:var(--accent);
-                            color:#fff; display:flex; align-items:center; justify-content:center;
-                            font-size:0.85rem; font-weight:600;">{initial}</div>
+        <div class="app-header">
+            <div>
+                <div class="app-breadcrumb">Finance Decision Studio</div>
+                <h1>{title}</h1>
+            </div>
+            <div class="header-user">
+                <div class="header-avatar">{initial}</div>
+                <div class="header-user-copy">
+                    <strong>{user}</strong>
+                    <span>Administrator</span>
+                </div>
             </div>
         </div>
         """,

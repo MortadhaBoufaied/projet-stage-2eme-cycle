@@ -64,7 +64,7 @@ def render(registry, recommender, profiles, company) -> None:
                 st.session_state[f"forecast_result_{company}"] = (met, result)
                 status.update(label="Evaluation complete", state="complete")
         except Exception as e:
-            st.exception(f"Demand evaluation failed: {e}")
+            st.error(f"Demand evaluation failed: {e}")
 
     # -- Display results -----------------------------------------------------
     saved = st.session_state.get(f"forecast_result_{company}")

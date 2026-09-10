@@ -25,7 +25,7 @@ def result_table(df: pd.DataFrame, height: int = 400, key: str = None) -> None:
     if "risk_score" in df.columns:
         col_config = {
             "risk_score": st.column_config.ProgressColumn(
-                "Risk score", min_value=0, max_value=1, format="%%"
+                "Risk score", min_value=0, max_value=1, format="%.0f%%"
             )
         }
     st.dataframe(
@@ -67,7 +67,7 @@ def training_results(
     if test_rows is not None:
         st.caption(
             f"Untouched holdout: {test_rows} rows "
-            f"| Default prevalence: {prevalence:.1% if prevalence else 0:.1%} "
+            f"| Default prevalence: {(prevalence or 0):.1%} "
             f"| False negatives: {false_negatives}"
         )
 

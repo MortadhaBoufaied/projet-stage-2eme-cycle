@@ -7,6 +7,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
+st.markdown("""
+<style>
+[data-testid="stHeader"] {
+    display: none;
+}
+
+[data-testid="stToolbar"] {
+    display: none;
+}
+
+footer {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+
 from src.ui.theme import apply_dark_theme
 from src.ui.login import render_login
 from src.ui.components.sidebar import render_sidebar

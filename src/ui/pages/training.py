@@ -175,7 +175,7 @@ def _render_single_credit(
             st.session_state[f"credit_training_{company}"] = (mapped, mp, model_type, review, high, met)
             st.success("Credit model trained and saved!")
         except Exception as e:
-            st.exception(f"Training failed: {e}")
+            st.error(f"Training failed: {e}")
 
     trained = st.session_state.get(f"credit_training_{company}")
     if trained is None:
@@ -221,7 +221,7 @@ def _render_single_credit(
             st.session_state[f"augmentation_{company}"] = result
             st.success("Augmentation comparison complete!")
         except Exception as e:
-            st.exception(f"Augmentation experiment failed: {e}")
+            st.error(f"Augmentation experiment failed: {e}")
 
     experiment = st.session_state.get(f"augmentation_{company}")
     if experiment is None:
@@ -323,7 +323,7 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                     f"optimal threshold {met.get('threshold', '-')}"
                 )
         except Exception as e:
-            st.exception(f"Training all models failed: {e}")
+            st.error(f"Training all models failed: {e}")
 
         if st.button("Grid search all models (find best params)", type="primary", disabled=bool(errs or validation)):
             try:
@@ -351,7 +351,7 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                         f"{best_gs[1].get('best_params', {})}"
                     )
             except Exception as e:
-                st.exception(f"Grid search failed: {e}")
+                st.error(f"Grid search failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +394,7 @@ def _render_single_forecast(
             metric_cards(met, ["MAE", "RMSE", "WAPE", "R2"])
             st.success("Demand model trained and saved!")
         except Exception as e:
-            st.exception(f"Training failed: {e}")
+            st.error(f"Training failed: {e}")
 
 
 def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, validation: list, company: str) -> None:
@@ -434,7 +434,7 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
                     f"RMSE {met.get('RMSE', 0):.4f}"
                 )
         except Exception as e:
-            st.exception(f"Training all forecast models failed: {e}")
+            st.error(f"Training all forecast models failed: {e}")
 
         if st.button("Grid search all forecast models", type="primary", disabled=bool(errs or validation)):
             try:
@@ -459,7 +459,7 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
                         f"with R2 {best_gs[1].get('R2', 0):.4f}"
                     )
             except Exception as e:
-                st.exception(f"Forecast grid search failed: {e}")
+                st.error(f"Forecast grid search failed: {e}")
 
 
 # ---------------------------------------------------------------------------
