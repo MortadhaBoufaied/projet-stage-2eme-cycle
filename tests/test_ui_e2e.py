@@ -35,6 +35,20 @@ def _page_app(module_path: str) -> AppTest:
     """
     script = (
         f"{_MOCK_IMPORTS}"
+        # Configure registry.load_latest to return None so pages take their
+        # 'no active model' fallback paths instead of rendering MagicMock
+        # values through st.metric() which requires numeric types.
+        "from unittest.mock import MagicMock as _MM\n"
+        "for _i in range(2):\n"
+        "    _MOCK_ARGS[0].load_latest.return_value = None\n"
+        "    _MOCK_ARGS[0].load_all.return_value = []\n"
+        "    _MOCK_ARGS[1].list_models.return_value = []\n"
+        "    _MOCK_ARGS[2].load.return_value = _MM(\n"
+        "        display_name='Test', currency='TND', language='English',\n"
+        "        review_threshold=0.5, high_risk_threshold=0.6,\n"
+        "        require_human_approval=False, recommendation_rules=[],\n"
+        "        forbidden_actions=[],\n"
+        "    )\n"
         f"import importlib\n"
         f"mod = importlib.import_module('{module_path}')\n"
         f"mod.render(*_MOCK_ARGS)\n"
@@ -54,12 +68,12 @@ def _page_app(module_path: str) -> AppTest:
 
 class TestDashboardPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.dashboard"))
+        at = _page_app("src.ui.pages.dashboard")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_page_header(self):
-        at = _page_app("src.ui.pages.dashboard"))
+        at = _page_app("src.ui.pages.dashboard")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Dashboard" in t for t in texts)
@@ -71,12 +85,12 @@ class TestDashboardPage:
 
 class TestCreditPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.credit"))
+        at = _page_app("src.ui.pages.credit")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_page_header(self):
-        at = _page_app("src.ui.pages.credit"))
+        at = _page_app("src.ui.pages.credit")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Credit risk" in t for t in texts)
@@ -88,12 +102,12 @@ class TestCreditPage:
 
 class TestDemandPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.demand"))
+        at = _page_app("src.ui.pages.demand")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_page_header(self):
-        at = _page_app("src.ui.pages.demand"))
+        at = _page_app("src.ui.pages.demand")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Demand" in t for t in texts)
@@ -105,12 +119,12 @@ class TestDemandPage:
 
 class TestTrainingPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.training"))
+        at = _page_app("src.ui.pages.training")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_model_family_radio(self):
-        at = _page_app("src.ui.pages.training"))
+        at = _page_app("src.ui.pages.training")
         at.run(timeout=30)
         radios = at.radio
         assert len(radios) >= 1, "Expected at least one radio button"
@@ -118,7 +132,7 @@ class TestTrainingPage:
         assert "Demand" in radios[0].options
 
     def test_default_selection_is_credit_risk(self):
-        at = _page_app("src.ui.pages.training"))
+        at = _page_app("src.ui.pages.training")
         at.run(timeout=30)
         radios = at.radio
         assert radios[0].value == "Credit risk"
@@ -130,19 +144,19 @@ class TestTrainingPage:
 
 class TestPoliciesPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.policies"))
+        at = _page_app("src.ui.pages.policies")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_page_header(self):
-        at = _page_app("src.ui.pages.policies"))
+        at = _page_app("src.ui.pages.policies")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Company rules" in t for t in texts)
 
     def test_has_save_button(self):
         """Verify the policies page contains a save/apply button."""
-        at = _page_app("src.ui.pages.policies"))
+        at = _page_app("src.ui.pages.policies")
         at.run(timeout=30)
         button_labels = [b.label for b in at.button]
         assert len(button_labels) >= 1, "Expected at least one button"
@@ -154,12 +168,12 @@ class TestPoliciesPage:
 
 class TestHistoryPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.history"))
+        at = _page_app("src.ui.pages.history")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_page_header(self):
-        at = _page_app("src.ui.pages.history"))
+        at = _page_app("src.ui.pages.history")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Model versions" in t for t in texts)
@@ -171,36 +185,36 @@ class TestHistoryPage:
 
 class TestHelpPage:
     def test_renders_without_error(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         assert not at.exception, f"Page raised: {at.exception}"
 
     def test_shows_pipeline_table(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("decision pipeline" in t.lower() for t in texts)
 
     def test_shows_mission_section(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Mission" in t for t in texts)
 
     def test_shows_credit_workflow(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Credit risk workflow" in t for t in texts)
 
     def test_shows_demand_workflow(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Demand workflow" in t for t in texts)
 
     def test_shows_governance_section(self):
-        at = _page_app("src.ui.pages.help"))
+        at = _page_app("src.ui.pages.help")
         at.run(timeout=30)
         texts = [m.value for m in at.markdown]
         assert any("Governance" in t for t in texts)
