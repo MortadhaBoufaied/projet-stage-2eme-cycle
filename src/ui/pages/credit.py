@@ -19,15 +19,32 @@ def render(registry, recommender, profiles, company) -> None:
 
     st.markdown(
         '<div class="page-header"><h1>Credit risk</h1>'
-        '<p class="lead">Upload current customer records. The active saved model runs without retraining.</p></div>',
+        '<p class="lead">Score a portfolio of customer records using the currently active credit model. '
+        'Each record receives a risk probability (0-1), a tier classification (LOW / MEDIUM / HIGH), '
+        'key risk indicators, and a governance-filtered recommendation.</p></div>',
         unsafe_allow_html=True,
     )
+    st.info(
+        "This page runs the **active model** saved on the History page. "
+        "It does not retrain. Upload new data or re-score existing data at any time."
+    )
 
-    df = csv_uploader("Customer credit data", "credit_predict")
+    df = csv_uploader(
+        "Customer credit data",
+        "credit_predict",
+        help="Upload a CSV of customer records. Required columns depend on the field mapping "
+        "configured in Training. At minimum, the file should contain financial features "
+        "used during model training (e.g. bill amount, payment history, credit limit).",
+    )
     if df is None:
         return
 
     # -- Data summary --------------------------------------------------------
+    st.markdown("#### Data summary")
+    st.caption(
+        "Quick quality check before mapping. Duplicate rows and missing cells may "
+        "reduce prediction accuracy."
+    )
     q = quality_report(df)
     metric_cards(
         q,
@@ -38,11 +55,22 @@ def render(registry, recommender, profiles, company) -> None:
         st.caption(f"Missing data: {q['missing_percent']:.2f}%")
 
     # -- Field mapping -------------------------------------------------------
+    st.markdown("#### Field mapping")
+    st.caption(
+        "Match your CSV columns to the model's expected fields. The system auto-suggests "
+        "exact matches and flags alias or invalid-family conflicts. Resolve all errors "
+        "before analyzing."
+    )
     fields = available_credit_fields(df.columns, False)
     mp, errs = field_mapping(df, fields, "cp_v4")
     mapped = apply_mapping(df, mp)
 
     # -- Validation ----------------------------------------------------------
+    st.markdown("#### Validation")
+    st.caption(
+        "Structural checks on the mapped dataset: required fields present, sufficient rows, "
+        "no invalid value types. Blocking errors must be resolved before analysis."
+    )
     validation = validate_credit(mapped, False)
     for e in validation:
         st.error(e)
@@ -52,6 +80,9 @@ def render(registry, recommender, profiles, company) -> None:
         "Analyze portfolio",
         type="primary",
         disabled=bool(errs or validation),
+        help="Run the active credit model on the mapped and validated data. "
+        "Results include risk scores, tier assignments, key indicators, and "
+        "governance-filtered recommendations.",
     ):
         try:
             with st.status("Running portfolio analysis...", expanded=True) as status:
@@ -92,6 +123,12 @@ def render(registry, recommender, profiles, company) -> None:
     if result is None:
         return
 
+    st.markdown("#### Results")
+    st.caption(
+        "Summary of the scored portfolio. The chart shows tier distribution; "
+        "the table lists every record with its risk score, tier, key indicators, "
+        "and recommended actions."
+    )
     metric_cards(
         {
             "customers": len(result),
@@ -119,4 +156,6 @@ def render(registry, recommender, profiles, company) -> None:
         result.to_csv(index=False).encode(),
         "credit_portfolio.csv",
         "text/csv",
+        help="Export the full scored portfolio as a CSV file including risk scores, "
+        "tiers, key indicators, and recommended actions.",
     )

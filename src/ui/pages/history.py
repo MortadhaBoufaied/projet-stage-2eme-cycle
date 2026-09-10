@@ -9,17 +9,27 @@ def render(registry, recommender, profiles, company) -> None:
 
     st.markdown(
         '<div class="page-header"><h1>Model versions</h1>'
-        '<p class="lead">Inspect saved versions and choose the active model for each workflow.</p></div>',
+        '<p class="lead">Every trained model is saved as an immutable version with its metrics, '
+        'hyperparameters, and training data summary. Use this page to compare versions and '
+        'control which one is active for live predictions.</p></div>',
         unsafe_allow_html=True,
     )
 
     for task in ["credit", "forecast"]:
-        st.markdown(f"### {task.title()}")
+        label = "Credit risk" if task == "credit" else "Demand forecast"
+        st.markdown(f"### {label}")
         versions = registry.versions(company, task)
         if not versions:
-            st.info("No saved versions.")
+            st.info(
+                f"No {label.lower()} models saved yet. "
+                "Go to Training to train your first model -- it will appear here automatically."
+            )
             continue
 
+        st.caption(
+            f"{len(versions)} version(s) saved. The table below shows each version's holdout "
+            "evaluation metrics so you can compare performance across training runs."
+        )
         rows = [
             {
                 "version": v["version"],
@@ -38,7 +48,17 @@ def render(registry, recommender, profiles, company) -> None:
             "Activate version",
             [v["version"] for v in versions],
             key=f"version_{task}",
+            help="Select a version to make it the active model. "
+            "All subsequent predictions on the Credit risk or Demand page will use this version.",
         )
-        if st.button("Set active", key=f"activate_{task}"):
+        if st.button(
+            "Set active",
+            key=f"activate_{task}",
+            help="Promote the selected version to active. The previous active version is retained "
+            "but no longer used for live predictions.",
+        ):
             registry.activate(company, task, chosen)
-            st.success("Active model updated.")
+            st.success(
+                f"Active {label.lower()} model updated to version **{chosen}**. "
+                "New predictions will use this version."
+            )

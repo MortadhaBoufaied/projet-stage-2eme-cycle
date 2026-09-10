@@ -4,11 +4,11 @@ import streamlit as st
 from src.services.schema import suggest_mapping, available_credit_fields, CREDIT_ID
 
 
-def csv_uploader(label: str, key: str, accepted_types: list[str] = None) -> pd.DataFrame | None:
+def csv_uploader(label: str, key: str, accepted_types: list[str] = None, help: str | None = None) -> pd.DataFrame | None:
     """Render a CSV file uploader and return the parsed DataFrame or None."""
     if accepted_types is None:
         accepted_types = ["csv"]
-    f = st.file_uploader(label, type=accepted_types, key=key)
+    f = st.file_uploader(label, type=accepted_types, key=key, help=help)
     if not f:
         return None
     try:

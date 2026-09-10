@@ -10,3 +10,13 @@ PAGE_MAP = {
     "history": history,
     "help": help,
 }
+
+PAGE_TITLES = {
+    "dashboard": "Dashboard",
+    "credit": "Credit risk analysis",
+    "demand": "Demand forecast",
+    "training": "Training and model selection",
+    "policies": "Company rules and policies",
+    "history": "Model versions",
+    "help": "Help and pipeline overview",
+}

@@ -148,16 +148,31 @@ def _render_single_credit(
     model_type = a.selectbox(
         "Model",
         sorted(AVAILABLE_CREDIT_MODELS),
-        help="XGBoost and LightGBM are recommended for tabular data.",
+        help="XGBoost and LightGBM are recommended for tabular data. "
+        "Random Forest and Extra Trees are more interpretable but may have lower accuracy.",
     )
-    review = b.slider("Review threshold", 0.10, 0.85, 0.50, 0.05)
-    high = c.slider("High-risk threshold", 0.20, 0.95, 0.60, 0.05)
+    review = b.slider(
+        "Review threshold", 0.10, 0.85, 0.50, 0.05,
+        help="Risk scores at or above this value are flagged for human review. "
+        "Lower values flag more records for review (higher recall, more manual work).",
+    )
+    high = c.slider(
+        "High-risk threshold", 0.20, 0.95, 0.60, 0.05,
+        help="Risk scores at or above this value are classified as HIGH_RISK. "
+        "Must be higher than the review threshold.",
+    )
 
     if review > high:
         validation.append("threshold")
         st.error("Review threshold cannot exceed the high-risk threshold.")
 
-    if st.button("Train credit model", type="primary", disabled=bool(errs or validation)):
+    if st.button(
+        "Train credit model",
+        type="primary",
+        disabled=bool(errs or validation),
+        help="Trains the selected algorithm on the training split and evaluates on the "
+        "untouched holdout. The trained model is saved as a new version.",
+    ):
         try:
             with st.status("Training credit model", expanded=True) as status:
                 if optimize_threshold:
@@ -191,9 +206,10 @@ def _render_single_credit(
 
     # -- Augmentation experiment ---------------------------------------------
     st.markdown("### Controlled data augmentation experiment")
-    st.info(
-        "Augmentation affects only the training partition. "
-        "The exact same untouched holdout is used before and after, so the comparison is fair."
+    st.caption(
+        "Synthetic minority-class examples are generated and added to the training partition. "
+        "A baseline model (no augmentation) and an augmented challenger are both evaluated on "
+        "the same untouched holdout, so the comparison is fair and the holdout is never modified."
     )
     x, y = st.columns(2)
     target_ratio = x.slider(
@@ -266,22 +282,41 @@ def _render_single_credit(
 def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, validation: list, company: str) -> None:
     """Train-all-models credit training flow."""
     st.markdown("### Hyperparameters for each model (override defaults)")
+    st.caption(
+        "Expand any model to override its default hyperparameters. Leave collapsed "
+        "to use the built-in tuned defaults."
+    )
     hp_map = _credit_hyperparams()
 
-    review_h = st.slider("Review threshold (all models)", 0.10, 0.85, 0.50, 0.05, "review_all")
-    high_h = st.slider("High-risk threshold (all models)", 0.20, 0.95, 0.60, 0.05, "high_all")
+    review_h = st.slider(
+        "Review threshold (all models)", 0.10, 0.85, 0.50, 0.05, "review_all",
+        help="Applied uniformly to all models. Risk scores at or above this value are "
+        "flagged for human review.",
+    )
+    high_h = st.slider(
+        "High-risk threshold (all models)", 0.20, 0.95, 0.60, 0.05, "high_all",
+        help="Applied uniformly to all models. Risk scores at or above this value are "
+        "classified as HIGH_RISK. Must be higher than the review threshold.",
+    )
     optimize_thr = st.checkbox(
         "Auto-optimize threshold for each model",
         value=False,
         key="opt_thr_all",
-        help="Sweeps thresholds per model to maximize F1+PR-AUC.",
+        help="For each model, sweeps candidate thresholds on the holdout to find the one "
+        "maximizing F1 and PR-AUC. Overrides the manual sliders above.",
     )
 
     if review_h > high_h:
         validation.append("threshold")
         st.error("Review threshold cannot exceed the high-risk threshold.")
 
-    if st.button("Train all models and select the best", type="primary", disabled=bool(errs or validation)):
+    if st.button(
+        "Train all models and select the best",
+        type="primary",
+        disabled=bool(errs or validation),
+        help="Trains every available credit algorithm and selects the one with the "
+        "best composite score (weighted ROC-AUC, F1, and PR-AUC). The winner is saved.",
+    ):
         try:
             with st.status("Training all credit models", expanded=True) as status:
                 model, met, best_name, all_metrics = train_all_credit(
@@ -325,7 +360,13 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
         except Exception as e:
             st.error(f"Training all models failed: {e}")
 
-        if st.button("Grid search all models (find best params)", type="primary", disabled=bool(errs or validation)):
+        if st.button(
+            "Grid search all models (find best params)",
+            type="primary",
+            disabled=bool(errs or validation),
+            help="Exhaustively tests combinations of hyperparameters across all credit "
+            "models. Returns the top-performing configurations ranked by F1 score.",
+        ):
             try:
                 with st.status("Running grid search across all models", expanded=True) as status:
                     top_results, all_ranked = grid_search_credit(mapped)
@@ -378,9 +419,21 @@ def _render_single_forecast(
     registry, mapped: pd.DataFrame, mp: dict, errs: list, validation: list, company: str,
 ) -> None:
     """Single-model forecast training flow."""
-    model_type = st.selectbox("Model", sorted(AVAILABLE_FORECAST_MODELS), key="forecast_model")
+    model_type = st.selectbox(
+        "Model",
+        sorted(AVAILABLE_FORECAST_MODELS),
+        key="forecast_model",
+        help="LightGBM and Boosted Trees are recommended for demand forecasting. "
+        "Random Forest is more interpretable. Baseline uses simple regularization.",
+    )
 
-    if st.button("Train demand model", type="primary", disabled=bool(errs or validation)):
+    if st.button(
+        "Train demand model",
+        type="primary",
+        disabled=bool(errs or validation),
+        help="Trains the selected algorithm on the training split and evaluates on the "
+        "chronological holdout. The trained model is saved as a new version.",
+    ):
         try:
             with st.status("Training demand model", expanded=True) as s:
                 st.write("Creating chronological holdout")
@@ -400,9 +453,19 @@ def _render_single_forecast(
 def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, validation: list, company: str) -> None:
     """Train-all-models forecast training flow."""
     st.markdown("### Hyperparameters for each model (override defaults)")
+    st.caption(
+        "Expand any model to override its default hyperparameters. Leave collapsed "
+        "to use the built-in tuned defaults."
+    )
     hp_map = _forecast_hyperparams()
 
-    if st.button("Train all forecast models and select the best", type="primary", disabled=bool(errs or validation)):
+    if st.button(
+        "Train all forecast models and select the best",
+        type="primary",
+        disabled=bool(errs or validation),
+        help="Trains every available forecast algorithm and selects the one with the "
+        "best composite score. The winner is saved as a new version.",
+    ):
         try:
             with st.status("Training all forecast models", expanded=True) as status:
                 model, met, best_name, all_metrics = train_all_forecast(mapped, hyperparams_map=hp_map)
@@ -436,7 +499,13 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
         except Exception as e:
             st.error(f"Training all forecast models failed: {e}")
 
-        if st.button("Grid search all forecast models", type="primary", disabled=bool(errs or validation)):
+        if st.button(
+            "Grid search all forecast models",
+            type="primary",
+            disabled=bool(errs or validation),
+            help="Exhaustively tests combinations of hyperparameters across all forecast "
+            "models. Returns the top-performing configurations ranked by R2 score.",
+        ):
             try:
                 with st.status("Running forecast grid search", expanded=True) as status:
                     top_results, all_ranked = grid_search_forecast(mapped)
@@ -471,15 +540,37 @@ def render(registry, recommender, profiles, company) -> None:
 
     st.markdown(
         '<div class="page-header"><h1>Training</h1>'
-        '<p class="lead">Validate data, train on one partition, evaluate on untouched records, and save a version.</p></div>',
+        '<p class="lead">Train a new model from labeled historical data. The system splits your data '
+        'into a training partition and an untouched chronological holdout, trains on the former, '
+        'and evaluates on the latter to produce unbiased performance metrics. Trained models are '
+        'saved as versioned artifacts and can be activated from the History page.</p></div>',
         unsafe_allow_html=True,
     )
 
-    task = st.radio("Model family", ["Credit risk", "Demand"], horizontal=True)
+    task = st.radio(
+        "Model family",
+        ["Credit risk", "Demand"],
+        horizontal=True,
+        help="Credit risk trains a classifier that outputs a risk score per customer. "
+        "Demand trains a regressor that forecasts unit demand per period.",
+    )
     validation: list = []
 
     if task == "Credit risk":
-        df = csv_uploader("Labeled credit history", "credit_train")
+        st.markdown(
+            "#### Credit risk training pipeline"
+        )
+        st.caption(
+            "Upload labeled credit records (historical loan or account data with known outcomes). "
+            "The pipeline validates the data, trains a classifier, and evaluates on an untouched "
+            "holdout to produce ROC-AUC, F1, precision, recall, and Brier score."
+        )
+        df = csv_uploader(
+            "Labeled credit history",
+            "credit_train",
+            help="CSV with historical credit records. Must include the target label column "
+            "(default or non-default) and feature columns used during field mapping.",
+        )
         if df is None:
             return
         _data_summary(df)
@@ -491,7 +582,20 @@ def render(registry, recommender, profiles, company) -> None:
             st.error(e)
         _render_credit_training(registry, mapped, mp, errs, validation, company)
     else:
-        df = csv_uploader("Historical demand training data", "forecast_train")
+        st.markdown(
+            "#### Demand forecast training pipeline"
+        )
+        st.caption(
+            "Upload historical demand records (period, product, units sold, and optional features). "
+            "The pipeline validates the data, trains a regressor on the training split, and "
+            "evaluates on the chronological holdout to produce MAE, RMSE, WAPE, and R2."
+        )
+        df = csv_uploader(
+            "Historical demand training data",
+            "forecast_train",
+            help="CSV with historical demand records. Must include a date column and a "
+            "units-sold or quantity column. Optional features improve accuracy.",
+        )
         if df is None:
             return
         _data_summary(df)
