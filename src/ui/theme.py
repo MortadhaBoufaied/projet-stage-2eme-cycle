@@ -33,42 +33,28 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
 [data-testid="stHeader"] { background: var(--bg) !important; border-bottom: 1px solid var(--border) !important; }
 [data-testid="stToolbar"] { display: none !important; }
 
-/* Sidebar -- only cosmetic overrides, never touch layout/width/transform */
+/* Sidebar -- colors only, zero layout overrides */
 [data-testid="stSidebar"] {
   background: var(--surface) !important;
   border-right: 1px solid var(--border) !important;
 }
-[data-testid="stSidebar"] [data-testid="stSidebarNav"] { padding-top: 0 !important; }
 [data-testid="stSidebar"] .stButton > button {
   background: transparent !important;
   border: none !important;
   color: var(--text-muted) !important;
   text-align: left !important;
-  padding: 0.5rem 1rem !important;
   border-radius: 8px !important;
-  height: 40px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.6rem !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
   transition: background 0.15s ease, color 0.15s ease !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
   background: var(--surface-2) !important;
   color: var(--text) !important;
 }
-[data-testid="stSidebar"] .stButton > button:focus {
-  box-shadow: none !important;
-  outline: none !important;
-}
 
 /* Content area */
 .block-container {
   max-width: 1400px !important;
   padding: 0 2rem 4rem !important;
-  position: relative !important;
-  z-index: 1 !important;
 }
 
 /* Headings */
@@ -249,10 +235,6 @@ hr { border-color: var(--border) !important; }
 footer { visibility: hidden; }
 header[data-testid="stHeader"] {
   background: var(--bg) !important;
-  z-index: 0 !important;
-}
-[data-testid="stAppHeader"] {
-  z-index: 0 !important;
 }
 
 /* Custom utility classes */
