@@ -1,14 +1,15 @@
 from __future__ import annotations
 import streamlit as st
 
+# ASCII labels for st.button (HTML does not render inside button labels).
 PAGES = [
-    ("dashboard", "bi-speedometer2", "Dashboard"),
-    ("credit", "bi-graph-up-arrow", "Credit risk"),
-    ("demand", "bi-graph-down-arrow", "Demand"),
-    ("training", "bi-tools", "Training"),
-    ("policies", "bi-journal-text", "Policies"),
-    ("history", "bi-clock-history", "History"),
-    ("help", "bi-question-circle", "Help"),
+    ("dashboard", "D", "Dashboard"),
+    ("credit",    "C", "Credit risk"),
+    ("demand",    "M", "Demand"),
+    ("training",  "T", "Training"),
+    ("policies",  "P", "Policies"),
+    ("history",   "H", "History"),
+    ("help",      "?", "Help"),
 ]
 
 PAGE_TITLES = {key: label for key, _, label in PAGES}
@@ -25,8 +26,8 @@ def render_sidebar() -> str:
         # Logo
         st.markdown(
             '<div class="sidebar-logo">'
-            '<i class="bi bi-graph-up-arrow"></i>'
-            '<p>FDS</p>'
+            '<p style="font-size:1.6rem; font-weight:700; margin:0;">FDS</p>'
+            '<p style="font-size:0.7rem; color:var(--text-muted); margin:0;">Finance Decision Studio</p>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -34,7 +35,7 @@ def render_sidebar() -> str:
         # Navigation buttons
         for key, icon, label in PAGES:
             is_active = key == current
-            btn_label = f'<i class="bi {icon}"></i>  {label}'
+            btn_label = f"[{icon}]  {label}"
             if st.button(
                 btn_label,
                 key=f"nav_{key}",
