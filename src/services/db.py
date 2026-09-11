@@ -65,6 +65,26 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         "  UNIQUE(company_id, task, version)"
         ")"
     )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS audit_log ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  timestamp TEXT NOT NULL,"
+        "  event_type TEXT NOT NULL,"
+        "  username TEXT NOT NULL DEFAULT '',"
+        "  role TEXT NOT NULL DEFAULT '',"
+        "  company_id TEXT NOT NULL DEFAULT '',"
+        "  detail TEXT"
+        ")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log (timestamp)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_log (event_type)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_username ON audit_log (username)"
+    )
     # -- Schema migrations (additive, idempotent) --------------------------
     # v2: add role column to users table
     cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]

@@ -24,6 +24,12 @@ NAV_GROUPS_ADMIN = [
         ],
     ),
     (
+        "Audit",
+        [
+            ("audit", "📋", "Audit log", "Security and operational event history"),
+        ],
+    ),
+    (
         "Support",
         [
             ("help", "?", "Help", "How the decision workflow works"),

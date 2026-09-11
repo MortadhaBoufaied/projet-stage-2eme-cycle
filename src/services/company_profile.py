@@ -20,6 +20,7 @@ class CompanyProfile:
     require_human_approval: bool = True
     recommendation_rules: list[str] = field(default_factory=list)
     forbidden_actions: list[str] = field(default_factory=list)
+    price_per_unit: float = 1.0
 
     def validate(self):
         if not 0 < self.review_threshold <= self.high_risk_threshold < 1:

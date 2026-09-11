@@ -62,6 +62,92 @@ class CashflowForecastAgent:
         r=self.predict_historical(df); r["residual"]=r["units_sold"]-r["forecast_units_sold"]; scale=max(float(r.residual.std()),1e-6)
         r["is_anomaly"]=(r.residual.abs()>2*scale).astype(int); r["is_stockout_risk"]=(r.inventory_level<2*r.forecast_units_sold).astype(int); return r
 
+    def predict_forward(self, df, n_periods=14):
+        """Iterative multi-step forecast projecting n_periods into the future.
+
+        Takes the most recent historical data, builds features, then
+        repeatedly predicts the next period and feeds the prediction back
+        as a lag value for subsequent predictions.
+
+        Args:
+            df: Historical demand DataFrame with at least date, store_id,
+                product_id, units_sold, and inventory columns.
+            n_periods: Number of future periods to project (default 14).
+
+        Returns:
+            DataFrame with projected dates, predicted units, and the
+            iterative step number (1 = first future period).
+        """
+        import pandas as pd
+        import numpy as np
+
+        featured = self.create_features(df)
+        featured = featured.sort_values(["store_id", "product_id", "date"]).copy()
+
+        # Take the last row per group as the seed for iterative prediction
+        last_rows = featured.groupby(["store_id", "product_id"], sort=False).tail(1).copy()
+        projections = []
+
+        for _, seed in last_rows.iterrows():
+            current = seed.copy()
+            for step in range(1, n_periods + 1):
+                # Build a single-row DataFrame matching the model's expected features
+                row_df = pd.DataFrame([current])[self.feature_names]
+                pred = float(np.clip(self.model.predict(row_df)[0], 0, None))
+
+                # Advance the date by one day
+                next_date = current["date"] + pd.Timedelta(days=1)
+
+                # Update lag features by shifting: lag_1 becomes the prediction
+                for lag in [1, 7, 14, 30]:
+                    col = f"lag_{lag}"
+                    if lag == 1:
+                        current[col] = pred
+                    elif col in current.index:
+                        # For longer lags, keep the previous value (no new data)
+                        pass
+
+                # Update rolling means using the new prediction
+                for win in [7, 14, 30]:
+                    mean_col = f"roll_mean_{win}"
+                    if mean_col in current.index:
+                        # Approximate: blend the prediction into the rolling mean
+                        old_mean = current[mean_col] if pd.notna(current[mean_col]) else pred
+                        current[mean_col] = (old_mean * (win - 1) + pred) / win
+
+                # Update time features
+                current["date"] = next_date
+                current["day_of_week"] = next_date.dayofweek
+                current["month"] = next_date.month
+                current["day_of_year"] = next_date.dayofyear
+                current["is_weekend"] = 1 if next_date.dayofweek >= 5 else 0
+
+                projections.append({
+                    "date": next_date,
+                    "store_id": current["store_id"],
+                    "product_id": current["product_id"],
+                    "predicted_units": round(pred, 2),
+                    "step": step,
+                })
+
+        return pd.DataFrame(projections)
+
+    def predict_revenue(self, predictions_df, price_per_unit=1.0):
+        """Multiply predicted units by a per-unit price to produce revenue estimates.
+
+        Args:
+            predictions_df: DataFrame with a 'predicted_units' column
+                (output of predict_forward or predict_historical).
+            price_per_unit: Monetary value per unit. Default 1.0 means
+                revenue equals units (pure demand view).
+
+        Returns:
+            Same DataFrame with an added 'estimated_revenue' column.
+        """
+        df = predictions_df.copy()
+        df["estimated_revenue"] = (df["predicted_units"] * price_per_unit).round(2)
+        return df
+
 
 def compute_forecast_composite_score(metrics):
     mae=metrics.get("MAE",999); rmse=metrics.get("RMSE",999); r2=metrics.get("R2",0); wape=metrics.get("WAPE",0) or 0

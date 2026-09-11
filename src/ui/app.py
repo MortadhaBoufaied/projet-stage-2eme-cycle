@@ -40,7 +40,7 @@ from src.services.company_profile import CompanyProfileStore
 # -- Page config and theme ---------------------------------------------------
 st.set_page_config(
     page_title="Finance Decision Studio",
-    page_icon="chart",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )

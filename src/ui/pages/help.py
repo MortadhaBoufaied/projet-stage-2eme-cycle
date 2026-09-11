@@ -50,10 +50,12 @@ def render(registry, recommender, profiles, company) -> None:
     st.markdown(
         "Upload labeled historical credit records. The system trains a classifier that "
         "outputs a risk score (0-1) and a tier (LOW / MEDIUM / HIGH) per customer. "
-        "Explainability indicators highlight the features driving each score. "
-        "The recommendation engine suggests actions (e.g. request additional documents, "
-        "approve with conditions) filtered through your company's mandatory rules and "
-        "forbidden-action keywords."
+        "SHAP-based explainability highlights the features driving each score with "
+        "quantified contribution values. The recommendation engine suggests actions "
+        "(e.g. request additional documents, approve with conditions) filtered through "
+        "your company's mandatory rules and forbidden-action keywords. An AI Summary "
+        "section generates a natural language portfolio assessment using an LLM when "
+        "an API key is configured, or a template-based summary otherwise."
     )
 
     # -- Demand workflow --------------------------------------------------------
@@ -62,8 +64,13 @@ def render(registry, recommender, profiles, company) -> None:
         "Upload historical sales or consumption data. The system trains a regressor that "
         "forecasts unit demand per period and flags anomalies and stockout risks. "
         "Evaluation metrics (MAE, RMSE, WAPE, R2) quantify forecast accuracy. "
+        "SHAP-based explainability shows per-period feature contributions. "
         "The recommendation engine surfaces supply-chain actions such as pre-order "
-        "triggers or safety-stock adjustments."
+        "triggers or safety-stock adjustments. A forward projection section allows "
+        "iterative multi-step forecasting (7, 14, or 30 days ahead). "
+        "Revenue projection multiplies predicted units by the configured per-unit price "
+        "to estimate future revenue trends. An AI Summary section generates a natural "
+        "language evaluation narrative."
     )
 
     # -- Training ---------------------------------------------------------------
@@ -84,22 +91,36 @@ def render(registry, recommender, profiles, company) -> None:
         "Each saved model version records its metrics, hyperparameters, data summary, "
         "and experiment type. The History page lists all versions and allows one-click "
         "activation or rollback. The Policies page lets administrators define mandatory "
-        "recommendation rules, forbidden action keywords, and whether human approval is "
-        "required before any recommendation is finalized."
+        "recommendation rules, forbidden action keywords, whether human approval is "
+        "required, and the per-unit price for revenue projections."
+    )
+
+    # -- Audit -----------------------------------------------------------------
+    st.markdown("### Audit logging")
+    st.markdown(
+        "Every security-relevant and operational event is recorded in an append-only "
+        "audit log: login attempts, sign-ups, sign-outs, model training runs, model "
+        "activations, and policy changes. Administrators can filter and review these "
+        "events from the Audit log page."
     )
 
     # -- Quick reference --------------------------------------------------------
     st.markdown("### Quick reference")
 
     st.markdown("""
-    1. **Configure workspace** -- Set company name, currency, and approval requirements on the Policies page.
+    1. **Configure workspace** -- Set company name, currency, approval requirements, and unit price on the Policies page.
     2. **Upload training data** -- Provide labeled historical records on the Training page.
     3. **Map and validate fields** -- Confirm the auto-suggested column mapping; resolve any invalid-family errors.
     4. **Train a model** -- Choose single-model, train-all, or grid-search. Review holdout metrics before saving.
     5. **Activate the model** -- Use the History page to set the newly trained version as the active model.
     6. **Run predictions** -- Upload new records on Credit risk or Demand. The active model scores them without retraining.
-    7. **Review recommendations** -- The governance engine applies company rules. Human approval can be enforced.
-    8. **Roll back if needed** -- History keeps every version. Reactivate a prior model at any time.
+    7. **Review SHAP explanations** -- Per-record feature contribution charts show what drives each prediction.
+    8. **Read the AI Summary** -- Natural language portfolio or demand assessment generated via LLM or template fallback.
+    9. **Project forward** -- On the Demand page, run iterative multi-step forecasts for 7, 14, or 30 days ahead.
+    10. **Estimate revenue** -- Convert unit forecasts to revenue projections using the configured per-unit price.
+    11. **Review recommendations** -- The governance engine applies company rules. Human approval can be enforced.
+    12. **Audit events** -- Administrators can review login, training, activation, and policy events on the Audit log page.
+    13. **Roll back if needed** -- History keeps every version. Reactivate a prior model at any time.
     """)
 
     st.markdown("---")

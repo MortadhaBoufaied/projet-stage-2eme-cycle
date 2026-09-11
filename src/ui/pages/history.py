@@ -3,6 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from src.services.audit import log_event, AuditEvent
+from src.services.auth import current_user, current_role
+
 
 def render(registry, recommender, profiles, company) -> None:
     """Render the model history page."""
@@ -58,6 +61,11 @@ def render(registry, recommender, profiles, company) -> None:
             "but no longer used for live predictions.",
         ):
             registry.activate(company, task, chosen)
+            log_event(
+                AuditEvent.MODEL_ACTIVATE,
+                username=current_user(), role=current_role(), company_id=company,
+                detail={"task": task, "version": chosen},
+            )
             st.success(
                 f"Active {label.lower()} model updated to version **{chosen}**. "
                 "New predictions will use this version."

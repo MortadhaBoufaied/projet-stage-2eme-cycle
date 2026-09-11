@@ -11,6 +11,8 @@ from src.services.schema import (
     validate_forecast,
     quality_report,
 )
+from src.services.audit import log_event, AuditEvent
+from src.services.auth import current_user, current_role
 from src.services.training import (
     train_credit,
     train_forecast,
@@ -186,6 +188,11 @@ def _render_single_credit(
                     "metrics": met, "mapping": mp,
                     "data_summary": quality_report(mapped), "experiment": "baseline",
                 })
+                log_event(
+                    AuditEvent.MODEL_TRAIN,
+                    username=current_user(), role=current_role(), company_id=company,
+                    detail={"task": "credit", "model_type": model_type, "experiment": "baseline"},
+                )
                 status.update(label="Model saved", state="complete")
             st.session_state[f"credit_training_{company}"] = (mapped, mp, model_type, review, high, met)
             st.success("Credit model trained and saved!")
@@ -276,6 +283,11 @@ def _render_single_credit(
             "metrics": selected_metrics, "mapping": stored_mapping,
             "data_summary": quality_report(source), "experiment": choice,
         })
+        log_event(
+            AuditEvent.MODEL_TRAIN,
+            username=current_user(), role=current_role(), company_id=company,
+            detail={"task": "credit", "model_type": stored_type, "experiment": choice},
+        )
         st.success("Recommended model version saved and activated.")
 
 
@@ -333,6 +345,11 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                     "experiment": f"train-all ({best_name})",
                     "model_type": best_name,
                 })
+                log_event(
+                    AuditEvent.MODEL_TRAIN,
+                    username=current_user(), role=current_role(), company_id=company,
+                    detail={"task": "credit", "model_type": best_name, "experiment": f"train-all ({best_name})"},
+                )
                 status.update(label=f"Best model: {best_name}", state="complete")
             st.session_state[f"credit_training_{company}"] = (mapped, mp, best_name, review_h, high_h, met)
             st.success(f"All models trained! Best: **{best_name}**")
@@ -450,6 +467,11 @@ def _render_single_forecast(
                     "metrics": met, "mapping": mp,
                     "data_summary": quality_report(mapped),
                 })
+                log_event(
+                    AuditEvent.MODEL_TRAIN,
+                    username=current_user(), role=current_role(), company_id=company,
+                    detail={"task": "forecast", "model_type": model_type, "experiment": "baseline"},
+                )
                 s.update(label="Demand model saved", state="complete")
             metric_cards(met, ["MAE", "RMSE", "WAPE", "R2"])
             st.success("Demand model trained and saved!")
@@ -483,6 +505,11 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
                     "experiment": f"train-all ({best_name})",
                     "model_type": best_name,
                 })
+                log_event(
+                    AuditEvent.MODEL_TRAIN,
+                    username=current_user(), role=current_role(), company_id=company,
+                    detail={"task": "forecast", "model_type": best_name, "experiment": f"train-all ({best_name})"},
+                )
                 status.update(label=f"Best model: {best_name}", state="complete")
             metric_cards(met, ["MAE", "RMSE", "WAPE", "R2"])
             st.success(f"All forecast models trained! Best: **{best_name}**")

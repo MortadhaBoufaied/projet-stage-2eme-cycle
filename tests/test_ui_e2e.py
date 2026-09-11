@@ -445,7 +445,7 @@ class TestPageRegistry:
     def test_all_pages_in_registry(self):
         """Verify PAGE_MAP contains all expected pages."""
         from src.ui.pages import PAGE_MAP
-        expected = {"dashboard", "credit", "demand", "training", "policies", "history", "help"}
+        expected = {"dashboard", "credit", "demand", "training", "policies", "history", "help", "audit"}
         assert set(PAGE_MAP.keys()) == expected
 
     def test_all_pages_have_titles(self):

@@ -9,6 +9,7 @@ import streamlit as st
 
 from src.config import ADMIN_PASSWORD, ADMIN_USERNAME, SESSION_MINUTES
 from src.services.db import _get_db
+from src.services.audit import log_event, AuditEvent
 
 # -- Session keys -----------------------------------------------------------
 AUTH_KEY = "finance_authenticated"
@@ -65,13 +66,17 @@ def sign_in(username: str, password: str) -> bool:
     is_admin = _verify_admin(username, password)
     is_registered = not is_admin and _verify_registered_user(username, password)
     if not is_admin and not is_registered:
+        log_event(AuditEvent.AUTH_SIGN_IN_FAIL, username=username.strip())
         return False
 
+    role = "admin" if is_admin else "company"
+    company = "admin_company" if is_admin else username.strip()
     st.session_state[AUTH_KEY] = True
     st.session_state[USER_KEY] = username.strip()
     st.session_state[EXPIRY_KEY] = datetime.now(timezone.utc) + timedelta(minutes=SESSION_MINUTES)
-    st.session_state[ROLE_KEY] = "admin" if is_admin else "company"
-    st.session_state[COMPANY_KEY] = "admin_company" if is_admin else username.strip()
+    st.session_state[ROLE_KEY] = role
+    st.session_state[COMPANY_KEY] = company
+    log_event(AuditEvent.AUTH_SIGN_IN, username=username.strip(), role=role, company_id=company)
     return True
 
 
@@ -104,6 +109,7 @@ def sign_up(username: str, password: str) -> tuple[bool, str]:
             (username.lower(), digest.hex(), salt.hex(), datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
+        log_event(AuditEvent.AUTH_SIGN_UP, username=username.lower(), role="company", company_id=username.lower())
         return True, "Account created. You can now sign in."
     finally:
         conn.close()
@@ -139,5 +145,11 @@ def current_company() -> str:
 
 def sign_out() -> None:
     """Clear all authentication session state."""
+    # Capture user info before clearing so we can log the event
+    user = str(st.session_state.get(USER_KEY, ""))
+    role = str(st.session_state.get(ROLE_KEY, ""))
+    company = str(st.session_state.get(COMPANY_KEY, ""))
     for key in (AUTH_KEY, USER_KEY, EXPIRY_KEY, ROLE_KEY, COMPANY_KEY):
         st.session_state.pop(key, None)
+    if user:
+        log_event(AuditEvent.AUTH_SIGN_OUT, username=user, role=role, company_id=company)

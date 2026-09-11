@@ -78,3 +78,51 @@ def status_banner(kind: str, message: str) -> None:
     icon = icons.get(kind, "info-circle")
     cls = f"status-{kind}"
     st.markdown(f'<div class="{cls}">{message}</div>', unsafe_allow_html=True)
+
+
+def render_shap_bar(
+    shap_indicators: list[dict],
+    record_label: str = "",
+    key_prefix: str = "shap",
+) -> None:
+    """Render a horizontal bar chart of SHAP feature contributions.
+
+    Args:
+        shap_indicators: List of dicts with keys "feature", "shap_value", "feature_value", "direction".
+        record_label: Optional label shown as the chart title (e.g. customer ID).
+        key_prefix: Unique prefix for Streamlit widget keys to avoid collisions.
+    """
+    if not shap_indicators:
+        st.caption("No SHAP explanation available for this record.")
+        return
+
+    import pandas as pd
+
+    # Build a DataFrame sorted by absolute SHAP value descending
+    df = pd.DataFrame(shap_indicators)
+    df["abs_shap"] = df["shap_value"].abs()
+    df = df.sort_values("abs_shap", ascending=True)  # ascending for horizontal bar (bottom = highest)
+
+    # Color: positive SHAP (increases risk) = red-ish, negative = green-ish
+    colors = ["#d9534f" if v > 0 else "#5cb85c" for v in df["shap_value"]]
+
+    title = f"Feature contributions for {record_label}" if record_label else "Feature contributions"
+    st.caption(title)
+
+    # Use Streamlit bar_chart on the absolute values with color context via caption
+    chart_df = pd.DataFrame({"SHAP value": df["shap_value"].values}, index=df["feature"].values)
+    st.bar_chart(chart_df, height=max(200, len(df) * 32))
+
+    # Render direction legend
+    st.caption("Red (positive) = increases risk | Green (negative) = decreases risk")
+
+
+def render_shap_table(shap_indicators: list[dict]) -> None:
+    """Render a tabular view of SHAP indicators with feature values and directions."""
+    if not shap_indicators:
+        return
+    import pandas as pd
+    df = pd.DataFrame(shap_indicators)
+    df = df[["feature", "feature_value", "shap_value", "direction"]]
+    df.columns = ["Feature", "Value", "SHAP contribution", "Direction"]
+    st.dataframe(df, use_container_width=True, hide_index=True)

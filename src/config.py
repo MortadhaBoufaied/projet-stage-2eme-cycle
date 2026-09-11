@@ -25,3 +25,8 @@ _load_env(PROJECT_ROOT / ".env")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 SESSION_MINUTES = max(5, int(os.getenv("SESSION_MINUTES", "60")))
+
+# OpenRouter LLM configuration for NLG summaries (optional).
+# If OPENROUTER_API_KEY is empty or missing, template-based fallback summaries are used.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()

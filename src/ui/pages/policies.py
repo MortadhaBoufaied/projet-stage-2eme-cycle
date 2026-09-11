@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.services.audit import log_event, AuditEvent
+from src.services.auth import current_user, current_role
+
 
 def render(registry, recommender, profiles, company) -> None:
     """Render the company policies page."""
@@ -45,6 +48,17 @@ def render(registry, recommender, profiles, company) -> None:
             "approves or overrides it. Recommended for production use.",
         )
 
+        st.markdown("### Revenue settings")
+        price_per_unit = left.number_input(
+            "Price per unit",
+            min_value=0.0,
+            value=float(getattr(profile, "price_per_unit", 1.0)),
+            step=0.1,
+            format="%.2f",
+            help="Unit price used to convert demand forecasts into revenue projections. "
+            "Set to 1.0 for unit-only views. Used on the Demand page's revenue projection.",
+        )
+
         st.markdown("### Recommendation controls")
         st.markdown(
             "These rules are injected into the recommendation engine's prompt. "
@@ -75,5 +89,11 @@ def render(registry, recommender, profiles, company) -> None:
         profile.require_human_approval = human
         profile.recommendation_rules = [x.strip() for x in rules.splitlines() if x.strip()]
         profile.forbidden_actions = [x.strip() for x in blocked.splitlines() if x.strip()]
+        profile.price_per_unit = float(price_per_unit)
         profiles.save(profile)
+        log_event(
+            AuditEvent.POLICY_UPDATE,
+            username=current_user(), role=current_role(), company_id=company,
+            detail={"fields": ["display_name", "currency", "language", "require_human_approval", "recommendation_rules", "forbidden_actions", "price_per_unit"]},
+        )
         st.success("Company rules saved.")
