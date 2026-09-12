@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.ui.pages import dashboard, credit, demand, training, policies, history, help, audit
+from src.ui.pages import dashboard, credit, demand, training, policies, history, help, audit, predict
 
 PAGE_MAP = {
     "dashboard": dashboard,
@@ -10,6 +10,7 @@ PAGE_MAP = {
     "history": history,
     "help": help,
     "audit": audit,
+    "predict": predict,
 }
 
 PAGE_TITLES = {
@@ -21,4 +22,5 @@ PAGE_TITLES = {
     "history": "Model versions",
     "help": "Help and pipeline overview",
     "audit": "Audit log",
+    "predict": "Single prediction",
 }

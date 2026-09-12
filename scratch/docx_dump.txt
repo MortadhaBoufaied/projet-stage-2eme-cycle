@@ -1,0 +1,61 @@
+P6: Project Overview
+P7: 🎓 Project Title
+P8: Design and Implementation of AI Agents for Financial Decision Support in ERP Systems
+P10:  Project Context
+P11: Enterprise Resource Planning (ERP) systems are widely used to manage financial operations such as sales, invoices, and payments. However, traditional ERP systems mainly focus on recording and displaying historical data. They provide limited predictive capabilities and lack proactive decision-support mechanisms.
+P12: As a result, financial managers often react to issues such as revenue decline or delayed payments instead of anticipating them.
+P13: This project aims to enhance financial decision-making within ERP environments through intelligent AI agents.
+P15:  Project Objective
+P17: The objective of this project is to design and implement two intelligent AI agents dedicated to financial decision support:
+P18: A Cashflow / Revenue Forecast Agent
+P19: A Payment Risk Assessment Agent
+P20: These agents will combine predictive modeling techniques with structured decision logic and natural language explanation mechanisms in order to transform raw financial data into actionable insights.
+P21: The final system will be delivered as an interactive prototype demonstrating how AI can enhance financial management within ERP systems.
+P23:  Scope of the Project
+P24: ✅ Included
+P25: Development of two finance-oriented AI agents
+P26: Implementation of predictive models for forecasting and risk estimation
+P27: Integration of explainability mechanisms to interpret model outputs
+P28: Generation of professional, human-readable financial summaries
+P29: Interactive user interface for demonstration and evaluation
+P30: ❌ Not Included
+P31: Full ERP system development
+P32: The focus is strictly on the AI-driven financial intelligence layer.
+P34:  Proposed AI Agents
+P35: 🟦 Agent 1 — Cashflow / Revenue Forecast Agent
+P36: Purpose
+P37: To anticipate future financial performance and detect potential risks early.
+P39: Functionality
+P40: Analyze historical sales and transaction data
+P41: Forecast future revenue or cashflow trends
+P42: Detect potential declines or abnormal patterns
+P43: Generate alerts when financial risk is identified
+P44: Provide recommended managerial actions
+P45: This agent supports proactive financial planning and risk anticipation.
+P47: 🟦 Agent 2 — Payment Risk Assessment Agent
+P48: Purpose
+P49: To estimate the probability of delayed payments and assist in credit-related decisions.
+P50: Functionality
+P51: Analyze customer credit behavior and payment history
+P52: Compute risk probability scores
+P53: Classify invoices or customers into risk categories
+P54: Identify the main drivers influencing the prediction
+P55: Generate professional recommendations for risk mitigation
+P56: This agent enhances credit control and cashflow stability.
+P59:  Role of Explainability and Natural Language Generation
+P60: The system will not only generate numerical predictions but also provide clear and professional explanations.
+P61: Model interpretability techniques will be used to identify the most influential factors behind each prediction.
+P63: Additionally, natural language generation will be integrated to produce structured financial summaries and recommendations tailored to managerial decision-making.
+P64: This ensures transparency, usability, and practical relevance.
+P66:  Expected Contributions
+P67: The project contributes to:
+P68: Designing an agent-based financial intelligence architecture
+P69: Integrating predictive analytics with structured decision policies
+P70: Enhancing transparency through explainability mechanisms
+P71: Demonstrating how AI agents can transform ERP systems from reactive tools into proactive decision-support systems
+P73:  Deliverables
+P74: Two fully implemented financial AI agents
+P75: Evaluated predictive models with performance metrics
+P76: Explainable outputs for risk and forecasting
+P77: Interactive demonstration interface
+P78: Comprehensive technical and experimental documentation

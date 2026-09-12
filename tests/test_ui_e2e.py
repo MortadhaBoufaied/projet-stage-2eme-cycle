@@ -400,6 +400,8 @@ class TestSidebar:
         assert not any("Training" in label for label in button_labels)
         assert not any("Policies" in label for label in button_labels)
         assert not any("History" in label for label in button_labels)
+        # Predict should be visible to company users
+        assert any("Predict" in label for label in button_labels)
 
     def test_sidebar_admin_view_shows_all_pages(self):
         """Admin users should see all navigation items."""
@@ -422,6 +424,7 @@ class TestSidebar:
         assert any("Training" in label for label in button_labels)
         assert any("Policies" in label for label in button_labels)
         assert any("History" in label for label in button_labels)
+        assert any("Predict" in label for label in button_labels)
 
     def test_sidebar_shows_brand(self):
         """Verify sidebar shows the FDS brand."""
@@ -445,7 +448,7 @@ class TestPageRegistry:
     def test_all_pages_in_registry(self):
         """Verify PAGE_MAP contains all expected pages."""
         from src.ui.pages import PAGE_MAP
-        expected = {"dashboard", "credit", "demand", "training", "policies", "history", "help", "audit"}
+        expected = {"dashboard", "credit", "demand", "predict", "training", "policies", "history", "help", "audit"}
         assert set(PAGE_MAP.keys()) == expected
 
     def test_all_pages_have_titles(self):
@@ -461,3 +464,52 @@ class TestPageRegistry:
         for key, module in PAGE_MAP.items():
             assert hasattr(module, "render"), f"Page module '{key}' missing render()"
             assert callable(module.render), f"Page module '{key}' render is not callable"
+
+
+# ---------------------------------------------------------------------------
+# Predict page
+# ---------------------------------------------------------------------------
+
+class TestPredictPage:
+    def test_predict_page_renderable(self):
+        """Verify the predict page renders without error."""
+        def page():
+            from unittest.mock import MagicMock
+            from src.ui.pages import predict
+            registry = MagicMock()
+            registry.load_latest_with_admin_fallback.return_value = (MagicMock(), None)
+            recommender = MagicMock()
+            profiles = MagicMock()
+            profiles.load.return_value = MagicMock(
+                display_name="Test", currency="TND", language="English",
+                review_threshold=0.5, high_risk_threshold=0.6,
+                require_human_approval=False, recommendation_rules=[],
+                forbidden_actions=[],
+            )
+            predict.render(registry, recommender, profiles, "test-company")
+
+        at = AppTest.from_function(page)
+        at.run(timeout=15)
+        assert not at.exception
+
+    def test_predict_page_has_tabs(self):
+        """Verify the predict page has Credit risk and Demand forecast tabs."""
+        def page():
+            from unittest.mock import MagicMock
+            from src.ui.pages import predict
+            registry = MagicMock()
+            registry.load_latest_with_admin_fallback.return_value = (MagicMock(), None)
+            recommender = MagicMock()
+            profiles = MagicMock()
+            profiles.load.return_value = MagicMock(
+                display_name="Test", currency="TND", language="English",
+                review_threshold=0.5, high_risk_threshold=0.6,
+                require_human_approval=False, recommendation_rules=[],
+                forbidden_actions=[],
+            )
+            predict.render(registry, recommender, profiles, "test-company")
+
+        at = AppTest.from_function(page)
+        at.run(timeout=15)
+        assert not at.exception
+        assert [tab.label for tab in at.tabs] == ["Credit risk", "Demand forecast"]

@@ -19,17 +19,16 @@ def render(registry, recommender, profiles, company) -> None:
     """Render the demand analysis page."""
 
     st.markdown(
-        '<div class="page-header"><h1>Demand analysis</h1>'
-        '<p class="lead">Evaluate historical demand records against the active forecast model. '
-        'The model generates per-period demand predictions, flags anomalies (unusual spikes or '
-        'drops), and identifies stockout risk. Governance-filtered supply-chain recommendations '
-        'are attached to each flagged record.</p></div>',
+        '<div class="page-header"><h1>Demand & Cashflow Forecast</h1>'
+        '<p class="lead"><strong>Agent 1 — Financial Performance & Demand Forecasting</strong>: '
+        'Evaluate transaction and sales trends against the active forecast model. '
+        'The agent predicts period demand, projects forward revenue/cash inflows, detects abnormal drops or spikes, '
+        'and flags stockout/cashflow vulnerability with governance-backed supply-chain actions.</p></div>',
         unsafe_allow_html=True,
     )
     st.info(
-        "This page runs the **active model** saved on the History page. "
-        "It evaluates historical demand and can project future periods "
-        "using iterative multi-step forecasting."
+        "This agent acts as the **Cashflow & Revenue Forecasting** intelligence layer for ERP systems. "
+        "It projects future periods and estimates anticipated revenue inflows to support proactive financial planning."
     )
 
     df = csv_uploader(
@@ -54,7 +53,7 @@ def render(registry, recommender, profiles, company) -> None:
         ["rows", "columns", "duplicate_rows", "missing_cells"],
     )
     with st.expander("Preview uploaded data"):
-        st.dataframe(df.head(25), use_container_width=True, hide_index=True)
+        st.dataframe(df.head(25), width='stretch', hide_index=True)
         st.caption(f"Missing data: {q['missing_percent']:.2f}%")
 
     # -- Field mapping -------------------------------------------------------
@@ -162,7 +161,7 @@ def render(registry, recommender, profiles, company) -> None:
         ["anomalies", "stockout_risks"],
     )
 
-    st.dataframe(alerts, use_container_width=True, hide_index=True)
+    st.dataframe(alerts, width='stretch', hide_index=True)
     st.download_button(
         "Download demand report",
         result.to_csv(index=False).encode(),
@@ -258,7 +257,7 @@ def render(registry, recommender, profiles, company) -> None:
             proj.groupby("date")["predicted_units"].sum(),
             height=300,
         )
-        st.dataframe(proj, use_container_width=True, hide_index=True)
+        st.dataframe(proj, width='stretch', hide_index=True)
         st.download_button(
             "Download projection",
             proj.to_csv(index=False).encode(),
@@ -278,11 +277,42 @@ def render(registry, recommender, profiles, company) -> None:
         st.caption(f"Current unit price: **{price}** {profile.currency}")
         revenue_proj = model.predict_revenue(proj, price_per_unit=price)
 
+        total_rev = float(revenue_proj["estimated_revenue"].sum())
+        total_units = float(revenue_proj["predicted_units"].sum())
+        avg_daily_rev = total_rev / max(1, len(revenue_proj["date"].unique()))
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric(f"Total Projected Inflow", f"{total_rev:,.2f} {profile.currency}")
+        c2.metric("Total Projected Units", f"{total_units:,.0f}")
+        c3.metric(f"Avg Daily Inflow", f"{avg_daily_rev:,.2f} {profile.currency}")
+
+        # Check for abnormal drop / revenue decline alert
+        rev_by_date = revenue_proj.groupby("date")["estimated_revenue"].sum()
+        if len(rev_by_date) >= 3:
+            first_half = rev_by_date.iloc[:len(rev_by_date)//2].mean()
+            second_half = rev_by_date.iloc[len(rev_by_date)//2:].mean()
+            if first_half > 0 and (second_half - first_half) / first_half < -0.15:
+                st.warning(
+                    f"⚠️ **Financial Risk Alert — Revenue Decline Detected**: "
+                    f"Projected revenue drops by {abs((second_half - first_half) / first_half):.1%} "
+                    f"in the latter half of the projection horizon. Recommend initiating promotional campaigns or inventory adjustments."
+                )
+
         st.bar_chart(
             revenue_proj.groupby("date")["estimated_revenue"].sum(),
             height=300,
         )
-        st.dataframe(revenue_proj, use_container_width=True, hide_index=True)
+        col_config = {
+            "estimated_revenue": st.column_config.NumberColumn(
+                f"Estimated Revenue ({profile.currency})",
+                format=f"%.2f {profile.currency}",
+            ),
+            "predicted_units": st.column_config.NumberColumn(
+                "Predicted Units",
+                format="%.0f",
+            ),
+        }
+        st.dataframe(revenue_proj, width='stretch', hide_index=True, column_config=col_config)
         st.download_button(
             "Download revenue projection",
             revenue_proj.to_csv(index=False).encode(),

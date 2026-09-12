@@ -48,7 +48,7 @@ def field_mapping(df: pd.DataFrame, fields: list[str], key: str) -> tuple[dict, 
         c2.metric("Aliases", aliases)
         c3.metric("Missing", missing)
         c4.metric("Invalid", invalid)
-        st.dataframe(report, use_container_width=True, hide_index=True,
+        st.dataframe(report, width='stretch', hide_index=True,
                       column_config={"Confidence": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1, format="%.0f%%")})
         unused = [c for c in df.columns if c not in {v for v in result.values() if v}]
         if unused:
@@ -70,6 +70,43 @@ def mapping_diagnostics(mapping: dict, fields: list[str]) -> tuple[list[dict], l
 def model_select(options: list[str], key: str, label: str = "Model") -> str:
     """Render a model selection dropdown."""
     return st.selectbox(label, options, key=key)
+
+
+def model_select_from_registry(registry, company: str, task: str, key: str, label: str = "Model") -> tuple[str, str] | None:
+    """Render a model selector that defaults to the active/trained model.
+
+    Lists all versions for the company/task (falling back to admin models).
+    The active model is selected by default; users can switch to any
+    previously trained version.
+
+    Returns (version, source_company) for the selected version,
+    or None if no trained models exist.
+    """
+    versions = registry.versions(company, task)
+    if not versions:
+        st.selectbox(label, ["No trained model"], key=key, disabled=True)
+        return None
+
+    # Build display names: "v3 (active)" or "v2"
+    options = []
+    for v in versions:
+        tag = " (active)" if v.get("is_active") else ""
+        options.append(f"v{v['version']}{tag}")
+
+    # Default to the active model index
+    default_idx = next(
+        (i for i, v in enumerate(versions) if v.get("is_active")),
+        0,
+    )
+    selected = st.selectbox(label, options, index=default_idx, key=key)
+
+    # Return the (version, source_company) for the selected version
+    for v in versions:
+        tag = " (active)" if v.get("is_active") else ""
+        if selected == f"v{v['version']}{tag}":
+            return (v["version"], company)
+
+    return (versions[default_idx]["version"], company)
 
 
 def slider_pair(label_low: str, label_high: str, low_default: float, high_default: float) -> tuple[float, float]:

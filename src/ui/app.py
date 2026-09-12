@@ -10,7 +10,7 @@ import streamlit as st
 st.markdown("""
 <style>
 [data-testid="stHeader"] {
-    display: none;
+    background: transparent !important;
 }
 
 [data-testid="stToolbar"] {
@@ -64,7 +64,7 @@ selected_page = render_sidebar()
 keys_to_remove = [
     k
     for k in st.session_state.keys()
-    if k.startswith(("credit_result_", "forecast_result_"))
+    if k.startswith(("credit_result_", "forecast_result_", "predict_result_"))
 ]
 for k in keys_to_remove:
     del st.session_state[k]

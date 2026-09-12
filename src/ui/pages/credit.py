@@ -21,15 +21,16 @@ def render(registry, recommender, profiles, company) -> None:
     """Render the credit risk analysis page."""
 
     st.markdown(
-        '<div class="page-header"><h1>Credit risk</h1>'
-        '<p class="lead">Score a portfolio of customer records using the currently active credit model. '
-        'Each record receives a risk probability (0-1), a tier classification (LOW / MEDIUM / HIGH), '
-        'key risk indicators, and a governance-filtered recommendation.</p></div>',
+        '<div class="page-header"><h1>Credit risk — Payment Risk Assessment</h1>'
+        '<p class="lead"><strong>Agent 2 — Customer & Invoice Delinquency Assessment</strong>: '
+        'Assess the probability of delayed payments across customers and invoices using the active credit risk model. '
+        'Each account receives a default risk probability (0-1), a risk classification (LOW / MEDIUM / HIGH), '
+        'unusual drivers, and managerial credit-control recommendations.</p></div>',
         unsafe_allow_html=True,
     )
     st.info(
-        "This page runs the **active model** saved on the History page. "
-        "It does not retrain. Upload new data or re-score existing data at any time."
+        "This agent serves as the **Payment Risk Assessment** intelligence layer for ERP systems. "
+        "It supports credit terms assignment, invoice risk monitoring, and proactive collection workflows."
     )
 
     df = csv_uploader(
@@ -54,7 +55,7 @@ def render(registry, recommender, profiles, company) -> None:
         ["rows", "columns", "duplicate_rows", "missing_cells"],
     )
     with st.expander("Preview uploaded data"):
-        st.dataframe(df.head(25), use_container_width=True, hide_index=True)
+        st.dataframe(df.head(25), width='stretch', hide_index=True)
         st.caption(f"Missing data: {q['missing_percent']:.2f}%")
 
     # -- Field mapping -------------------------------------------------------
@@ -158,7 +159,7 @@ def render(registry, recommender, profiles, company) -> None:
     chart.bar_chart(result.risk_tier.value_counts(), height=300)
     table.dataframe(
         result,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "risk_score": st.column_config.ProgressColumn(

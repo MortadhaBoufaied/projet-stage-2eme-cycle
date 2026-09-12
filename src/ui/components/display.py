@@ -14,6 +14,38 @@ def metric_cards(values: dict, labels: list[str]) -> None:
         col.metric(name.replace("_", " "), val)
 
 
+def risk_tier_badge(tier: str, score: float | None = None) -> None:
+    """Render a standardized modern status badge for risk tiers."""
+    tier_upper = str(tier).upper()
+    if "HIGH" in tier_upper:
+        color = "var(--danger, #ef4444)"
+        bg = "rgba(239, 68, 68, 0.15)"
+        icon = "bi-shield-fill-x"
+        label = "High Risk"
+    elif "MEDIUM" in tier_upper or "REVIEW" in tier_upper:
+        color = "var(--warning, #f59e0b)"
+        bg = "rgba(245, 158, 11, 0.15)"
+        icon = "bi-exclamation-triangle-fill"
+        label = "Medium Risk (Review)"
+    else:
+        color = "var(--success, #22c55e)"
+        bg = "rgba(34, 197, 94, 0.15)"
+        icon = "bi-shield-fill-check"
+        label = "Low Risk"
+
+    score_str = f" &bull; Score: {score:.1%}" if score is not None else ""
+    st.markdown(
+        f"""
+        <div style="display:inline-flex; align-items:center; gap:0.5rem; background:{bg}; color:{color}; 
+                    border:1px solid {color}44; border-radius:8px; padding:0.4rem 0.85rem; font-weight:600; font-size:0.92rem; margin: 0.4rem 0 0.8rem;">
+            <i class="bi {icon}"></i>
+            <span>{label}{score_str}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def result_metrics(metrics: dict, labels: list[str]) -> None:
     """Render a row of metric cards from a metrics dict."""
     metric_cards(metrics, labels)
@@ -29,7 +61,7 @@ def result_table(df: pd.DataFrame, height: int = 400, key: str = None) -> None:
             )
         }
     st.dataframe(
-        df, use_container_width=True, hide_index=True,
+        df, width='stretch', hide_index=True,
         height=height, column_config=col_config,
     )
 
@@ -125,4 +157,4 @@ def render_shap_table(shap_indicators: list[dict]) -> None:
     df = pd.DataFrame(shap_indicators)
     df = df[["feature", "feature_value", "shap_value", "direction"]]
     df.columns = ["Feature", "Value", "SHAP contribution", "Direction"]
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)

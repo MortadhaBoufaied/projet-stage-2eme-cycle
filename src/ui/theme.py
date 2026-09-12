@@ -43,11 +43,19 @@ html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"] {
   color: var(--text-muted) !important;
   text-align: left !important;
   border-radius: 8px !important;
-  transition: background 0.15s ease, color 0.15s ease !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
   background: var(--surface-2) !important;
   color: var(--text) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] {
+  background: var(--surface-2) !important;
+  color: #ffffff !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: 4px 8px 8px 4px !important;
+  font-weight: 600 !important;
 }
 
 /* Content area */

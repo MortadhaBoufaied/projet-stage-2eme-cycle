@@ -120,6 +120,47 @@ class ModelRegistry:
 
         return model_path
 
+    def load_by_version(self, company_id: str, task: str, version: str):
+        """Load a specific model version by its version string.
+
+        Falls back to the admin namespace if the company has no
+        matching version.  Returns (model_object, metadata_dict).
+        Raises FileNotFoundError if the version does not exist anywhere.
+        """
+        source_company_id = safe_company_id(company_id)
+        row = None
+
+        conn = _get_db()
+        try:
+            row = conn.execute(
+                "SELECT task, version, model_file, metrics, mapping, data_summary,"
+                " experiment, model_type, is_active, saved_at_utc"
+                " FROM model_versions"
+                " WHERE company_id = ? AND task = ? AND version = ?",
+                (source_company_id, task, version),
+            ).fetchone()
+            # Fallback to admin namespace when the company has no matching version.
+            if row is None and company_id != _ADMIN_COMPANY_ID:
+                row = conn.execute(
+                    "SELECT task, version, model_file, metrics, mapping, data_summary,"
+                    " experiment, model_type, is_active, saved_at_utc"
+                    " FROM model_versions"
+                    " WHERE company_id = ? AND task = ? AND version = ?",
+                    (_ADMIN_COMPANY_ID, task, version),
+                ).fetchone()
+                source_company_id = _ADMIN_COMPANY_ID
+        finally:
+            conn.close()
+
+        if row is None:
+            raise FileNotFoundError(f"Version {version} not found for {task} model.")
+
+        meta = self._row_to_dict(row)
+        model_path = self._task_dir(source_company_id, task) / meta["model_file"]
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model file {meta['model_file']} not found on disk.")
+        return joblib.load(model_path), meta
+
     def load_latest(self, company_id: str, task: str):
         """Load the active model and its metadata.
 

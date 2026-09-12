@@ -138,7 +138,7 @@ def _render_company_dashboard(registry, company: str) -> None:
     with col1:
         if st.button(
             "Credit risk analysis",
-            use_container_width=True,
+            width='stretch',
             type="primary" if credit_model else "secondary",
             disabled=credit_model is None,
             help="Upload customer data and run it through the active credit risk model.",
@@ -155,7 +155,7 @@ def _render_company_dashboard(registry, company: str) -> None:
     with col2:
         if st.button(
             "Demand forecast",
-            use_container_width=True,
+            width='stretch',
             type="primary" if forecast_model else "secondary",
             disabled=forecast_model is None,
             help="Upload historical demand data and run it through the active forecast model.",
@@ -194,7 +194,7 @@ def _render_company_dashboard(registry, company: str) -> None:
             }
             for v in versions[:5]
         ]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
 
     if not has_any:
         st.info(

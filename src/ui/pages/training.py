@@ -38,7 +38,7 @@ def _data_summary(df: pd.DataFrame) -> None:
     q = quality_report(df)
     metric_cards(q, ["rows", "columns", "duplicate_rows", "missing_cells"])
     with st.expander("Preview uploaded data"):
-        st.dataframe(df.head(25), use_container_width=True, hide_index=True)
+        st.dataframe(df.head(25), width='stretch', hide_index=True)
         st.caption(f"Missing data: {q['missing_percent']:.2f}%")
 
 
@@ -251,7 +251,7 @@ def _render_single_credit(
         return
 
     comparison = pd.DataFrame(experiment["comparison"])
-    st.dataframe(comparison, use_container_width=True, hide_index=True)
+    st.dataframe(comparison, width='stretch', hide_index=True)
     meta = experiment["augmentation"]
     st.caption(
         f"Synthetic training rows: {meta['synthetic_rows']} "
@@ -373,7 +373,7 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                             "Brier_Score": m.get("Brier_Score", 0),
                             "threshold": m.get("threshold", "-"),
                         })
-                st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(comp_rows), width='stretch', hide_index=True)
                 st.success(
                     f"Auto-selected best model: **{best_name}** "
                     f"with ROC-AUC {met.get('ROC_AUC', 0):.4f}, "
@@ -408,7 +408,7 @@ def _render_all_credit(registry, mapped: pd.DataFrame, mp: dict, errs: list, val
                             "grid_size": m.get("grid_size", "-"),
                             "best_params": str(m.get("best_params", {}))[:120],
                         })
-                    st.dataframe(pd.DataFrame(gs_rows), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(gs_rows), width='stretch', hide_index=True)
                     best_gs = all_ranked[0]
                     st.success(
                         f"Grid search best: **{best_gs[0]}** with F1 {best_gs[1].get('F1_Score', 0):.4f} "
@@ -530,7 +530,7 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
                             "R2": m.get("R2", 0),
                             "WAPE": m.get("WAPE", 0),
                         })
-                st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(comp_rows), width='stretch', hide_index=True)
                 st.success(
                     f"Auto-selected best model: **{best_name}** "
                     f"with R2 {met.get('R2', 0):.4f}, "
@@ -562,7 +562,7 @@ def _render_all_forecast(registry, mapped: pd.DataFrame, mp: dict, errs: list, v
                             "grid_size": m.get("grid_size", "-"),
                             "best_params": str(m.get("best_params", {}))[:120],
                         })
-                    st.dataframe(pd.DataFrame(gs_rows), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(gs_rows), width='stretch', hide_index=True)
                     best_gs = all_ranked[0]
                     st.success(
                         f"Forecast grid search best: **{best_gs[0]}** "

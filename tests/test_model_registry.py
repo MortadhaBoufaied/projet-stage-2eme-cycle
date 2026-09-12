@@ -238,6 +238,14 @@ class TestAdminFallback:
         with pytest.raises(FileNotFoundError, match="No saved"):
             registry.load_latest_with_admin_fallback(_ADMIN_COMPANY_ID, "credit")
 
+    def test_load_by_version_falls_back_to_admin_when_company_has_no_matching_version(self, registry):
+        """A selected company model can load when it exists only in admin storage."""
+        registry.save(_ADMIN_COMPANY_ID, "credit", DummyModel(99), {"metrics": {"acc": 0.9}})
+        version = registry.versions(_ADMIN_COMPANY_ID, "credit")[0]["version"]
+        model, meta = registry.load_by_version("alice", "credit", version)
+        assert model.value == 99
+        assert meta["metrics"] == {"acc": 0.9}
+
     def test_fallback_loads_admin_newest_when_no_active(self, registry):
         """Fallback returns newest admin version when none is active."""
         registry.save(_ADMIN_COMPANY_ID, "credit", DummyModel(1), {"metrics": {"v": 1}})

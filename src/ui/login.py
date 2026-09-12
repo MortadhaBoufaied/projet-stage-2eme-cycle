@@ -91,7 +91,7 @@ def _render_login_form() -> None:
             type="password",
             autocomplete="current-password",
         )
-        submitted = st.form_submit_button("Sign in", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Sign in", type="primary", width='stretch')
 
     if submitted:
         if not username.strip() or not password:
@@ -110,7 +110,7 @@ def _render_login_form() -> None:
     st.caption("Session expires automatically after inactivity.")
 
     st.markdown("---")
-    if st.button("Create an account", key="goto_signup", use_container_width=True):
+    if st.button("Create an account", key="goto_signup", width='stretch'):
         st.session_state["auth_view"] = "signup"
         st.rerun()
 
@@ -142,7 +142,7 @@ def _render_signup_form() -> None:
             type="password",
             autocomplete="new-password",
         )
-        submitted = st.form_submit_button("Create account", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Create account", type="primary", width='stretch')
 
     if submitted:
         if not username.strip() or not password:
@@ -163,6 +163,6 @@ def _render_signup_form() -> None:
                     st.error(msg)
 
     st.markdown("---")
-    if st.button("Back to sign in", key="goto_login", use_container_width=True):
+    if st.button("Back to sign in", key="goto_login", width='stretch'):
         st.session_state["auth_view"] = "login"
         st.rerun()

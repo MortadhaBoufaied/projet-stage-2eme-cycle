@@ -11,8 +11,9 @@ NAV_GROUPS_ADMIN = [
         "Workspace",
         [
             ("dashboard", "▣", "Dashboard", "Overview and model status"),
-            ("credit", "↗", "Credit risk", "Assess credit applications"),
-            ("demand", "↘", "Demand", "Forecast historical demand"),
+            ("credit", "↗", "Credit risk", "Assess customer & invoice payment delinquency"),
+            ("demand", "↘", "Demand & Cashflow", "Forecast revenue and cashflow trends"),
+            ("predict", "🎯", "Predict", "Simulate single customer or invoice decision"),
         ],
     ),
     (
@@ -42,8 +43,9 @@ NAV_GROUPS_COMPANY = [
         "Workspace",
         [
             ("dashboard", "▣", "Dashboard", "Overview and analysis history"),
-            ("credit", "↗", "Credit risk", "Assess credit applications"),
-            ("demand", "↘", "Demand", "Forecast historical demand"),
+            ("credit", "↗", "Credit risk", "Assess customer & invoice payment delinquency"),
+            ("demand", "↘", "Demand & Cashflow", "Forecast revenue and cashflow trends"),
+            ("predict", "🎯", "Predict", "Simulate single customer or invoice decision"),
         ],
     ),
 ]
@@ -67,7 +69,7 @@ def _render_nav_item(key: str, icon: str, label: str, description: str, current:
     if st.button(
         f"{icon}  {label}",
         key=f"nav_{key}",
-        use_container_width=True,
+        width='stretch',
         type="primary" if is_active else "secondary",
         help=description,
     ):
@@ -124,7 +126,7 @@ def render_sidebar() -> str:
             f'<div><strong>{user}</strong><span>Signed in</span></div></div>',
             unsafe_allow_html=True,
         )
-        if st.button("Sign out", key="sidebar_signout", use_container_width=True):
+        if st.button("Sign out", key="sidebar_signout", width='stretch'):
             sign_out()
             st.rerun()
 
