@@ -83,8 +83,8 @@ See `data/dataset_metadata.json` for dataset-level metadata.
 ### Role-based access
 | Role | Pages |
 |------|-------|
-| Admin | Dashboard, Credit, Demand, Training, Policies, History, Help, Audit |
-| Company | Dashboard, Credit, Demand |
+| Admin | Dashboard, Credit, Demand, Predict, Training, Policies, History, Help, Audit |
+| Company | Dashboard, Credit, Demand, Predict |
 
 ### Explainability & NLG
 - SHAP via `src/services/explainer.py` — TreeExplainer (tree models), LinearExplainer (logistic), KernelExplainer (fallback)
@@ -94,7 +94,7 @@ See `data/dataset_metadata.json` for dataset-level metadata.
 
 - `src/agents/` — `CreditRiskAgent`, `CashflowForecastAgent`
 - `src/services/` — `audit`, `auth`, `company_profile`, `db`, `explainer`, `model_registry`, `nlg`, `recommendation_policy`, `schema`
-- `src/ui/` — `app.py` (router), `components/` (display, fields, sidebar), `pages/` (8 modules), `login.py`
+- `src/ui/` — `app.py` (router), `components/` (display, fields, sidebar), `pages/` (9 modules), `login.py`
 - `src/config.py` — `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `RANDOM_STATE`
 - `src/services/db.py` — shared SQLite with users, model_versions, audit_log tables
 
