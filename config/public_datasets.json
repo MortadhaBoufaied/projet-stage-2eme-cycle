@@ -1,0 +1,61 @@
+{
+  "uci_credit_card": {
+    "key": "uci_credit_card",
+    "name": "UCI Default of Credit Card Clients",
+    "task": "credit",
+    "schema_family": "uci_credit_v1",
+    "target": "default_next_month",
+    "source_page": "https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients",
+    "direct_download": "https://huggingface.co/datasets/scikit-learn/credit-card-clients/resolve/main/UCI_Credit_Card.csv?download=true",
+    "notes": "Direct CSV mirror. Normalize the ID and target names. Do not append if the same UCI rows already exist in another file.",
+    "column_mapping": {
+      "ID": "client_id",
+      "default.payment.next.month": "default_next_month"
+    }
+  },
+  "german_credit": {
+    "key": "german_credit",
+    "name": "German Credit Data",
+    "task": "credit",
+    "schema_family": "german_credit_v1",
+    "target": "default",
+    "source_page": "https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data",
+    "direct_download": "https://raw.githubusercontent.com/tkseneee/Dataset/master/credit-default.csv",
+    "notes": "Different feature architecture. Train a separate model and never concatenate with UCI credit rows.",
+    "column_mapping": {}
+  },
+  "retail_sku_weekly": {
+    "key": "retail_sku_weekly",
+    "name": "Retail SKU Weekly Demand",
+    "task": "forecast",
+    "schema_family": "retail_sku_weekly_v1",
+    "target": "units_sold",
+    "source_page": "https://demandprediction.github.io/dataset.html",
+    "direct_download": "",
+    "notes": "Weekly SKU demand. Select the downloadable raw file on the source page; inventory fields are not fabricated.",
+    "column_mapping": {
+      "week": "date",
+      "SKU": "product_id",
+      "weekly sales": "units_sold",
+      "vendor": "store_id"
+    }
+  },
+  "retail_transactions": {
+    "key": "retail_transactions",
+    "name": "Retail Sales Transactions",
+    "task": "forecast",
+    "schema_family": "retail_transactions_v1",
+    "target": "revenue",
+    "source_page": "https://github.com/Seunfunmee/Retail-Sales-Data-Set",
+    "direct_download": "https://raw.githubusercontent.com/Seunfunmee/Retail-Sales-Data-Set/main/Retail%20Sales%20Data%20Set.csv",
+    "notes": "Aggregate transactions by date and category before revenue or unit forecasting.",
+    "column_mapping": {
+      "Transaction ID": "transaction_id",
+      "Date": "date",
+      "Product Category": "category",
+      "Quantity": "units_sold",
+      "Price per Unit": "price",
+      "Total Amount": "revenue"
+    }
+  }
+}

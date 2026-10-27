@@ -1,0 +1,37 @@
+{
+  "metrics": {
+    "ROC_AUC": 0.7578,
+    "PR_AUC": 0.3302,
+    "Accuracy": 0.3663,
+    "F1_Score": 0.2544,
+    "Precision": 0.1473,
+    "Recall": 0.9307,
+    "Brier_Score": 0.1938,
+    "Confusion_Matrix": [
+      [
+        13189,
+        31950
+      ],
+      [
+        411,
+        5520
+      ]
+    ],
+    "n_test": 51070,
+    "split": "fixed stratified holdout",
+    "train_rows": 204277,
+    "test_rows": 51070,
+    "model_type": "xgboost"
+  },
+  "source_file": "Loan_default.csv",
+  "model_type": "xgboost",
+  "company_id": "demo_company",
+  "task": "loan",
+  "model_file": "model_20260903T012436107116Z.joblib",
+  "version": "20260903T012436107116Z",
+  "status": "CANDIDATE",
+  "created_at_utc": "2026-09-03T01:24:36.117421+00:00",
+  "activated_at_utc": null,
+  "archived_at_utc": null,
+  "deleted_at_utc": null
+}

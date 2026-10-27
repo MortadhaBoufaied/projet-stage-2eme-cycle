@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+artifacts/models/*
+artifacts/workspaces/*
+data/platform.db
+models/*

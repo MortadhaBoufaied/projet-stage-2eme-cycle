@@ -1,0 +1,1783 @@
+import io,os,json,hashlib
+from pathlib import Path
+import pandas as pd, numpy as np, streamlit as st
+from src.config import MAX_UPLOAD_MB
+from src.services.auth import verify,signup,create_session,validate_session,destroy_session
+from src.services.schemas import template,documentation,normalize,CREDIT_FIELDS,FORECAST_FIELDS
+from src.services.validation import validate
+from src.services.modeling import train_credit,train_forecast,forecast_features
+from src.services.registry import Registry
+from src.services.intelligence import interpret
+from src.services.metrics import regression,classification
+from src.services.workspace import Workspace
+
+from src.agents.credit_agent import CreditRiskAgent
+from src.agents.forecast_agent import CashflowForecastAgent
+from src.ui.theme import apply_theme, apply_light_theme, apply_dark_theme
+from src.services.flexible_schema import analyze_dataframe, validate_flexible, apply_flexible_preprocessing, auto_clean_dataset, enhance_schema_with_slm, enhance_schema_with_slm_forecast, clear_schema_cache, save_template, get_current_template, update_template_on_schema_change, save_schema_version, get_schema_versions, get_latest_schema_version, compare_schemas, suggest_schema_improvements, check_schema_migration_required
+
+st.set_page_config(page_title='ML Intelligence Center',page_icon='◆',layout='wide')
+
+# Hide Streamlit navbar/toolbar completely
+hide_navbar_css = """
+<style>
+/* Hide all Streamlit navbar elements */
+.stApp header, 
+.stApp header > div,
+.stApp header > div > div,
+.stApp header button,
+.stApp .stToolbar,
+.stApp .stDeployButton,
+.stApp #MainMenu,
+.stApp .stDecoration,
+.stApp .stStatusWidget {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+}
+
+/* Hide header completely */
+header {
+    display: none !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Remove header spacing */
+[data-testid="stHeader"] {
+    display: none !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Hide deploy button specifically */
+.stDeployButton {
+    display: none !important;
+}
+
+/* Hide hamburger menu */
+#MainMenu {
+    display: none !important;
+}
+
+/* Remove white bar above content - target root elements */
+.stApp,
+.stApp > div,
+.stApp > div > div,
+.stApp .main,
+.stApp .block-container {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* Allow normal scrolling for content pages */
+html, body {
+    height: auto !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-y: auto !important;
+}
+
+.stApp {
+    height: auto !important;
+    min-height: 100vh !important;
+    display: block !important;
+    overflow-y: auto !important;
+}
+
+.stApp .main {
+    flex: none !important;
+    display: block !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    overflow-y: auto !important;
+}
+
+.stApp .main .block-container {
+    width: 100% !important;
+    max-width: 1420px !important;
+    padding: 1.5rem 2.4rem 4rem !important;
+    overflow-y: auto !important;
+}
+
+/* Remove any top decoration or white bars */
+[data-testid="stDecoration"],
+.stDecoration,
+.stApp .stDecoration {
+    display: none !important;
+    height: 0 !important;
+    width: 0 !important;
+}
+
+
+
+/* Hide any white background bars at the top */
+.stApp header,
+.stApp .stHeader,
+.stApp [data-testid="stHeader"] {
+    background: transparent !important;
+    display: none !important;
+    height: 0 !important;
+}
+
+/* Remove login-container styling */
+.login-container {
+    display: none !important;
+}
+
+/* Ensure dataframes and containers can scroll */
+.stDataFrame, .stDataFrame div {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+}
+
+/* Enable scrolling for all main content containers */
+[style="min-height: 200px"] {
+    overflow-y: auto !important;
+}
+
+/* Fix scroll on status containers */
+.stStatusWidget {
+    overflow-y: auto !important;
+}
+
+/* Remove any white bars from tabs */
+[data-testid="stTabs"],
+.stTabs {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Remove any padding from tabs container */
+[data-testid="stTabs"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+
+
+/* Theme toggle button styling */
+#theme-toggle-header-btn {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    z-index: 999999999 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 1.8rem !important;
+    line-height: 1 !important;
+    padding: 8px !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: unset !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: transform 0.2s ease, opacity 0.2s ease !important;
+    color: inherit !important;
+    user-select: none !important;
+}
+
+#theme-toggle-header-btn:hover {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: scale(1.1) !important;
+    opacity: 0.8 !important;
+}
+
+#theme-toggle-header-btn:active {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    transform: scale(0.95) !important;
+}
+
+#theme-toggle-header-btn {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+</style>
+"""
+st.markdown(hide_navbar_css, unsafe_allow_html=True)
+
+# ── Theme State with LocalStorage & URL Persistence ──────────────────
+theme_param = st.query_params.get('theme')
+if theme_param in ('dark', 'light'):
+    st.session_state.dark_mode = (theme_param == 'dark')
+elif 'dark_mode' not in st.session_state:
+    st.session_state.dark_mode = False
+
+apply_theme(is_dark=st.session_state.dark_mode)
+
+# JavaScript bridge to sync localStorage with Streamlit
+session_token_value = st.session_state.get('session_token', '')
+storage_sync_script = f"""
+<script>
+(function() {{
+  try {{
+    const storedTheme = localStorage.getItem('finance_theme_mode');
+    const currentParam = new URLSearchParams(window.location.search).get('theme');
+    
+    // If user has a stored theme preference and it's not yet in the URL query params, sync it
+    if (storedTheme && (!currentParam || currentParam !== storedTheme)) {{
+      const url = new URL(window.location.href);
+      url.searchParams.set('theme', storedTheme);
+      window.location.replace(url.href);
+      return;
+    }}
+    
+    // Save current active theme into localStorage
+    const currentTheme = {'"dark"' if st.session_state.dark_mode else '"light"'};
+    localStorage.setItem('finance_theme_mode', currentTheme);
+    
+    // Restore session token from localStorage if available and not in URL
+    const savedToken = localStorage.getItem('finance_session_token');
+    const sessionParam = new URLSearchParams(window.location.search).get('session');
+    if (savedToken && (!sessionParam || sessionParam !== savedToken)) {{
+      const url = new URL(window.location.href);
+      url.searchParams.set('session', savedToken);
+      window.location.replace(url.href);
+      return;
+    }}
+    
+    // Save session token to localStorage when logged in
+    const sessionToken = '{session_token_value}';
+    if (sessionToken) {{
+      localStorage.setItem('finance_session_token', sessionToken);
+    }} else {{
+      localStorage.removeItem('finance_session_token');
+    }}
+  }} catch(e) {{
+    // Silently ignore storage errors if cookies/storage blocked
+  }}
+}})();
+</script>
+"""
+st.markdown(storage_sync_script, unsafe_allow_html=True)
+
+reg=Registry()
+
+# ── Top-Right Corner Theme Toggle (in place of Deploy button) ─────────
+is_dark = st.session_state.dark_mode
+icon = '☀️' if is_dark else '🌙'
+target_theme = 'light' if is_dark else 'dark'
+tooltip = 'Switch to Light Mode' if is_dark else 'Switch to Dark Mode'
+
+st.markdown(
+    f"""
+    <button id="theme-toggle-header-btn" title="{tooltip}" style="cursor: pointer; user-select: none; font-size: 1.5rem; position: fixed; top: 1rem; right: 1rem; z-index: 9999; padding: 0.5rem; background: transparent; border: none; box-shadow: none;" onclick="
+        (function() {{
+            try {{
+                localStorage.setItem('finance_theme_mode', '{target_theme}');
+            }} catch(e) {{}}
+            const u = new URL(window.location.href);
+            u.searchParams.set('theme', '{target_theme}');
+            window.location.href = u.href;
+        }})();
+    ">{icon}</button>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ── Helpers ──────────────────────────────────────────────────────────
+def suggest_best_search_field(df):
+    """AI suggests the best field for searching based on data characteristics."""
+    if df is None or len(df) == 0:
+        return None
+    
+    # Priority: client_id > name fields > unique identifiers > first column
+    columns = df.columns.tolist()
+    
+    if not columns:
+        return None
+    
+    # Check for client_id first
+    if 'client_id' in columns:
+        return 'client_id'
+    
+    # Check for name fields
+    name_fields = [c for c in columns if 'name' in c.lower()]
+    if name_fields:
+        return name_fields[0]
+    
+    # Check for ID fields
+    id_fields = [c for c in columns if 'id' in c.lower()]
+    if id_fields:
+        return id_fields[0]
+    
+    # Check for columns with high uniqueness (good identifiers)
+    for col in columns:
+        try:
+            if df[col].nunique() / len(df) > 0.95:  # 95% unique
+                return col
+        except:
+            continue
+    
+    # Fallback to first column
+    return columns[0]
+
+def title(k,h,d):
+    st.markdown(f'<div class="app-hero"><div class="app-kicker">{k}</div><h1 style="margin:0.3rem 0 0.35rem;">{h}</h1><p>{d}</p></div>',unsafe_allow_html=True)
+
+def show_metrics(m):
+    labels = {
+        'roc_auc': 'ROC-AUC', 'pr_auc': 'PR-AUC', 'f1': 'F1 Score',
+        'accuracy': 'Accuracy', 'precision': 'Precision', 'recall': 'Recall',
+        'wape': 'WAPE', 'mae': 'MAE', 'rmse': 'RMSE', 'r2': 'R² Score'
+    }
+    keys=[k for k,v in m.items() if isinstance(v,(int,float)) and not isinstance(v,bool)][:8]
+    if not keys: return
+    for c,k in zip(st.columns(min(4,len(keys))),keys[:4]):
+        lbl = labels.get(k.lower(), k.replace('_', ' ').title())
+        c.metric(lbl, 'N/A' if m[k] is None else f"{m[k]:.3f}")
+    if len(keys)>4:
+        for c,k in zip(st.columns(min(4,len(keys)-4)),keys[4:8]):
+            lbl = labels.get(k.lower(), k.replace('_', ' ').title())
+            c.metric(lbl, 'N/A' if m[k] is None else f"{m[k]:.3f}")
+
+def render_risk_kpis(summary):
+    a,b,c,d,e=st.columns(5)
+    a.metric('Total Evaluated',f"{summary['total_records']:,}")
+    b.metric('🔴 High Risk',f"{summary['high_risk']:,}")
+    c.metric('🟡 Medium Risk',f"{summary['medium_risk']:,}")
+    d.metric('🟢 Low Risk',f"{summary['low_risk']:,}")
+    e.metric('Avg Risk Score',f"{summary['average_risk']:.1%}")
+
+def render_model_assessment(ass):
+    st.markdown(
+        f"""
+<div class="ai-box" style="margin-top:0.9rem;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.55rem;flex-wrap:wrap;gap:0.3rem;">
+    <div style="font-size:0.75rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--primary);">
+      Governance & Evaluation Summary
+    </div>
+    <span class="badge badge-neutral">Generated by {ass.get('generator','AI Engine')}</span>
+  </div>
+  <p style="margin:0;font-size:0.95rem;line-height:1.6;color:var(--text);font-weight:500;">
+    {ass.get('executive_summary','')}
+  </p>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    c1,c2=st.columns(2)
+    with c1:
+        st.markdown('<div style="font-weight:700;color:var(--success);font-size:0.88rem;margin:0.6rem 0 0.35rem;">✓ Validated Strengths</div>',unsafe_allow_html=True)
+        for x in ass.get('strengths',[]):
+            st.markdown(f'<div class="rec-card" style="border-left:3px solid var(--success);"><div style="font-size:0.88rem;color:var(--text);">{x}</div></div>',unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div style="font-weight:700;color:var(--warning);font-size:0.88rem;margin:0.6rem 0 0.35rem;">⚠ Cautions & Edge Cases</div>',unsafe_allow_html=True)
+        for x in ass.get('weaknesses',[]):
+            st.markdown(f'<div class="rec-card" style="border-left:3px solid var(--warning);"><div style="font-size:0.88rem;color:var(--text);">{x}</div></div>',unsafe_allow_html=True)
+    st.markdown('<div style="font-weight:700;color:var(--primary);font-size:0.88rem;margin:0.75rem 0 0.35rem;">→ Recommendations for Production</div>',unsafe_allow_html=True)
+    for x in ass.get('recommendations',[]):
+        st.markdown(f'<div class="rec-card" style="border-left:3px solid var(--primary);"><div style="font-size:0.88rem;color:var(--text);">{x}</div></div>',unsafe_allow_html=True)
+    st.caption(f"Generated by {ass.get('generator','AI Engine')}. {ass.get('human_review_notice','')}")
+
+def render_active_model(task_type, meta):
+    if hasattr(meta, 'active'):
+        try:
+            _, meta = meta.active(task_type)
+        except Exception:
+            st.info(f'No active {task_type} model yet.')
+            return
+    if not isinstance(meta, dict):
+        st.info(f'No active {task_type} model yet.')
+        return
+    vid = meta.get('version_id', 'N/A')
+    algo = meta.get('algorithm', 'unknown')
+    trained = str(meta.get('training_timestamp', 'N/A'))[:19]
+    st.markdown(
+        f"""
+<div class="active-model-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+    <div>
+      <span class="badge badge-success">● Active Production Model</span>
+      <h3 style="margin:0.35rem 0 0.2rem;font-size:1.25rem;">{vid}</h3>
+      <div style="color:var(--muted);font-size:0.85rem;">
+        Algorithm: <strong style="color:var(--text);">{algo}</strong> &nbsp;•&nbsp; 
+        Trained: <span style="color:var(--text);">{trained}</span>
+      </div>
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+def read_upload(f):
+    if f.size>MAX_UPLOAD_MB*1024*1024: raise ValueError(f'File exceeds {MAX_UPLOAD_MB} MB.')
+    try: return pd.read_csv(f,sep=None,engine='python')
+    except UnicodeDecodeError: f.seek(0); return pd.read_csv(f,encoding='latin-1')
+
+def report_ui(r):
+    a,b,c,d=st.columns(4)
+    a.metric('Validated Rows',f"{r.rows:,}")
+    b.metric('Columns Count',r.columns)
+    c.metric('Duplicates',r.duplicates)
+    d.metric('Missing Cells',r.missing_cells)
+    for i in r.issues: (st.error if i.level=='error' else st.warning)(i.message)
+
+def excel_bytes(df):
+    b=io.BytesIO()
+    with pd.ExcelWriter(b,engine='openpyxl') as w: df.to_excel(w,index=False,sheet_name='Results')
+    return b.getvalue()
+
+# ── Session restore from token ───────────────────────────────────────
+if 'user' not in st.session_state:
+    token=st.query_params.get('session')
+    if token:
+        restored=validate_session(token)
+        if restored:
+            st.session_state.user=restored
+            st.session_state.session_token=token
+            # Sync to localStorage
+            st.markdown(f'<script>localStorage.setItem("finance_session_token", "{token}");</script>', unsafe_allow_html=True)
+
+def login():
+    col1, col2 = st.columns([1.15, 1], gap="large")
+    with col1:
+        st.markdown(
+            """
+<div class="app-hero" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 2.2rem 2rem;">
+  <div>
+    <div class="app-kicker">Enterprise Financial Intelligence</div>
+    <h1 style="margin: 0.6rem 0 0.8rem; font-size: 2.2rem; line-height: 1.2;">ML Intelligence Center</h1>
+    <p style="font-size: 1.02rem; line-height: 1.6; margin-bottom: 1.5rem; color: var(--muted);">
+      Two-sided enterprise financial decision support system. Governed model lifecycle management for administrators, and real-time risk & cashflow forecasting for organizations.
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.2rem;">
+      <div style="display: flex; align-items: center; gap: 0.65rem; color: var(--text); font-size: 0.92rem;">
+        <span class="badge badge-primary">Governed AI</span> Stratified & chronological evaluation splits
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.65rem; color: var(--text); font-size: 0.92rem;">
+        <span class="badge badge-success">Credit Risk</span> Multi-algorithm scoring, tiers & SHAP impact
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.65rem; color: var(--text); font-size: 0.92rem;">
+        <span class="badge badge-warning">Forecasting</span> Chronological WAPE evaluation & stockout alerts
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.65rem; color: var(--text); font-size: 0.92rem;">
+        <span class="badge badge-neutral">AI Guidance</span> Deterministic audit trail & executive narratives
+      </div>
+    </div>
+  </div>
+  <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--muted);">
+    🔒 Isolated tenant workspaces & cryptographic audit tokens
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+    with col2:
+        a,b=st.tabs(['Sign In','Create Workspace'])
+        with a:
+            st.markdown('<p style="color: var(--muted); font-size: 0.88rem; margin-bottom: 0.9rem;">Sign in to your platform account or administrator console.</p>', unsafe_allow_html=True)
+            with st.form('login'):
+                e=st.text_input('Work Email', placeholder='admin@finance.local')
+                p=st.text_input('Password', type='password', placeholder='••••••••••••')
+                go=st.form_submit_button('Sign In to Platform', type='primary', use_container_width=True)
+            if go:
+                u=verify(e,p)
+                if u:
+                    token=create_session(u['email'])
+                    st.session_state.user=u
+                    st.session_state.session_token=token
+                    st.query_params['session']=token
+                    # Save to localStorage
+                    st.markdown(f'<script>localStorage.setItem("finance_session_token", "{token}");</script>', unsafe_allow_html=True)
+                    st.rerun()
+                else: st.error('Invalid credentials or inactive account.')
+        with b:
+            st.markdown('<p style="color: var(--muted); font-size: 0.88rem; margin-bottom: 0.9rem;">Register a tenant workspace for governed financial analytics.</p>', unsafe_allow_html=True)
+            with st.form('signup'):
+                c=st.text_input('Company Name', placeholder='Acme Global Capital')
+                n=st.text_input('Full Name', placeholder='Alex Martin')
+                e=st.text_input('Work Email', placeholder='alex@acme.com')
+                p=st.text_input('Password (minimum 10 characters)', type='password', placeholder='••••••••••••')
+                go=st.form_submit_button('Create Company Workspace', type='primary', use_container_width=True)
+            if go:
+                ok,msg=signup(c,n,e,p); 
+                if ok:
+                    st.success(msg)
+                    # Auto-login after successful signup
+                    u=verify(e,p)
+                    if u:
+                        token=create_session(u['email'])
+                        st.session_state.user=u
+                        st.session_state.session_token=token
+                        st.query_params['session']=token
+                        # Save to localStorage
+                        st.markdown(f'<script>localStorage.setItem("finance_session_token", "{token}");</script>', unsafe_allow_html=True)
+                        st.rerun()
+                else:
+                    st.error(msg)
+
+if 'user' not in st.session_state: login(); st.stop()
+u=st.session_state.user; role=u['role']; company=u['company_id']
+
+# ── Sidebar ──────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(
+        f"""
+<div style="padding: 0.4rem 0 0.85rem; border-bottom: 1px solid var(--border); margin-bottom: 0.9rem;">
+  <div class="app-kicker" style="margin-bottom: 0.2rem;">Fintech AI Platform</div>
+  <h2 style="margin: 0; font-size: 1.25rem; letter-spacing: -0.025em; display: flex; align-items: center; gap: 0.4rem;">
+    <span style="color: var(--primary);">◆</span> ML Center
+  </h2>
+</div>
+<div class="user-chip">
+  <div style="font-weight: 750; color: var(--text); font-size: 0.9rem;">{u['name']}</div>
+  <div style="color: var(--muted); font-size: 0.77rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{u['email']}</div>
+  <div style="margin-top: 0.35rem;">
+    <span class="badge {'badge-primary' if role=='admin' else 'badge-success'}">
+      {'★ Platform Administrator' if role=='admin' else f'🏢 {u.get("company_id","Workspace")}'}
+    </span>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    if role=='admin':
+        pages=['Model Training','Credit Risk Agent','Forecast Agent']
+    else:
+        pages=['Credit Risk Analysis','Demand Forecast']
+    page=st.radio('Navigation',pages)
+    st.markdown('<div style="margin-top: 1rem;"></div>', unsafe_allow_html=True)
+    if st.button('Sign Out', use_container_width=True):
+        destroy_session(st.session_state.get('session_token'))
+        current_theme = st.query_params.get('theme')
+        st.session_state.clear()
+        st.query_params.clear()
+        if current_theme:
+            st.query_params['theme'] = current_theme
+        # Clear session token from localStorage
+        st.markdown('<script>localStorage.removeItem("finance_session_token");</script>', unsafe_allow_html=True)
+        st.rerun()
+    st.markdown(
+        """
+<div style="margin-top: 1.8rem; padding: 0.7rem 0.8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.74rem; color: var(--muted);">
+  <div style="font-weight: 650; color: var(--text); margin-bottom: 0.2rem;">● System Health</div>
+  <div>Status: Operational</div>
+  <div>Engine: Scikit-learn + XGBoost</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+# ══════════════════════════════════════════════════════════════════════
+#  ADMIN PAGES
+# ══════════════════════════════════════════════════════════════════════
+if role=='admin':
+
+    # ── Page 1: Model Training ───────────────────────────────────────
+    if page=='Model Training':
+
+        tab_credit, tab_forecast = st.tabs(['💳 Credit Risk Model','📈 Forecast Model'])
+
+        # — Credit training tab —
+        with tab_credit:
+            st.subheader('Train Credit Risk Model')
+            
+            # Initialize training step
+            if 'credit_training_step' not in st.session_state:
+                st.session_state.credit_training_step = 1
+            
+            # Step 1: Upload
+            if st.session_state.credit_training_step == 1:
+                st.markdown('### Step 1: Upload Training Data')
+                fs=st.file_uploader('Upload credit training CSV',type='csv',accept_multiple_files=True,key='train_credit')
+                if fs:
+                    try:
+                        frames=[]
+                        for f in fs: frames.append(read_upload(f))
+                        base=set(frames[0].columns)
+                        if any(set(x.columns)!=base for x in frames[1:]): st.error('Files have different columns. Training blocked.'); st.stop()
+                        raw=pd.concat(frames,ignore_index=True)
+                        
+                        # Store data for next step
+                        st.session_state.credit_training_data = raw
+                        st.session_state.credit_file_hash = hashlib.md5(str([f.name for f in fs]).encode()).hexdigest()[:8]
+                        
+                        if st.button('Continue to Schema Analysis', type='primary'):
+                            st.session_state.credit_training_step = 2
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f'Error processing file: {e}')
+            
+            # Step 2: Schema Analysis
+            elif st.session_state.credit_training_step == 2:
+                st.markdown('### Step 2: Schema Analysis')
+                raw = st.session_state.credit_training_data
+                
+                # Flexible mode with auto-detection
+                st.markdown('### 🔍 Auto-Detected Schema')
+                
+                # Check for schema migration requirements first
+                fingerprint = hashlib.md5(json.dumps(sorted([str(c) for c in raw.columns]), sort_keys=True).encode()).hexdigest()[:8]
+                has_saved_schemas = len(get_schema_versions('credit')) > 0
+                
+                if has_saved_schemas:
+                    migration_check = check_schema_migration_required(fingerprint, 'credit')
+                    
+                    if migration_check['migration_required']:
+                        st.warning('⚠️ **New Schema Architecture Detected')
+                        st.markdown(f"""
+**Migration Alert:** Your file has a different structure than the previous training data.
+
+**Changes:**
+- {migration_check['message']}
+- Previous Schema: `{migration_check['old_schema'].version_id[:20]}...`
+- Created: {migration_check['old_schema'].created_at}
+""", unsafe_allow_html=True)
+                        
+                        if migration_check['can_compare']:
+                            comp = migration_check['comparison']
+                            st.markdown('**Detailed Changes:**')
+                            if comp['added_features']:
+                                st.markdown(f"✅ **Added Features:** {', '.join(comp['added_features'][:5])}")
+                            if comp['removed_features']:
+                                st.markdown(f"❌ **Removed Features:** {', '.join(comp['removed_features'][:5])}")
+                            if comp['target_changed']:
+                                st.markdown(f"🎯 **Target Changed:** `{comp['old_target']}` → `{comp['new_target']}`")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button('✅ Yes, Migrate to New Architecture', type='primary', key='migrate_credit'):
+                                st.session_state.credit_migration_confirmed = True
+                                st.rerun()
+                        with col2:
+                            if st.button('❌ No, Keep Current Architecture', key='keep_credit'):
+                                st.session_state.credit_migration_confirmed = False
+                                st.stop()
+                        
+                        if not st.session_state.get('credit_migration_confirmed', False):
+                            st.stop()
+                
+                # First get rule-based schema
+                rule_based_schema = analyze_dataframe(raw)
+                
+                # Initialize force_refresh (will be shown conditionally below)
+                force_refresh = False
+                
+                # Enhance with SLM if available (using cache)
+                with st.spinner('🤖 Analyzing schema...'):
+                    schema = enhance_schema_with_slm(raw, rule_based_schema, force_slm=force_refresh)
+                
+                # Show cache/AI status only if there are saved schemas to compare
+                if has_saved_schemas:
+                    # Add force refresh option
+                    force_refresh = st.checkbox('🔄 Force AI Re-analysis (ignore cache)', value=False)
+                    
+                    # Show cache status
+                    if hasattr(schema, 'from_cache') and schema.from_cache:
+                        st.info('⚡ Using cached schema analysis (instant loading)')
+                    elif force_refresh:
+                        st.success('✅ AI re-analysis complete')
+                    else:
+                        st.info('ℹ️ New schema detected - using AI analysis')
+                    
+                    # Show SLM status
+                    if hasattr(schema, 'slm_reasoning') and schema.slm_reasoning:
+                        st.success('✅ Enhanced with AI-powered analysis')
+                    else:
+                        st.info('ℹ️ Using rule-based analysis (AI unavailable)')
+                
+                # Show detected schema
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Detected Task Type:** {schema.task_type.title()}")
+                    st.markdown(f"**Suggested Target:** `{schema.suggested_target or 'None detected'}`")
+                with col2:
+                    st.markdown(f"**Suggested Features:** {len(schema.suggested_features)} columns")
+                    st.markdown(f"**Suggested IDs:** {len(schema.suggested_ids)} columns")
+                
+                # Show AI reasoning if available
+                if hasattr(schema, 'slm_reasoning') and schema.slm_reasoning:
+                    with st.expander('🧠 AI Analysis Details'):
+                        if schema.slm_reasoning.get('target'):
+                            st.markdown(f"**Target Reasoning:** {schema.slm_reasoning['target']}")
+                        if schema.slm_reasoning.get('task'):
+                            st.markdown(f"**Task Type Reasoning:** {schema.slm_reasoning['task']}")
+                        if schema.slm_reasoning.get('confidence'):
+                            confidence = schema.slm_reasoning['confidence']
+                            st.markdown(f"**AI Confidence:** {confidence:.0%}")
+                        
+                        if schema.slm_suggestions:
+                            st.markdown('**AI Suggestions:**')
+                            for suggestion in schema.slm_suggestions:
+                                st.markdown(f"- {suggestion}")
+                
+                # Show column analysis
+                st.markdown('#### Column Analysis')
+                col_df = pd.DataFrame([{
+                    'Column': c.name,
+                    'Type': c.dtype,
+                    'Role': c.suggested_role,
+                    'Missing': c.missing_count,
+                    'Unique': c.unique_count,
+                    'Confidence': f"{c.confidence:.0%}"
+                } for c in schema.columns])
+                st.dataframe(col_df, use_container_width=True, hide_index=True)
+                
+                # Generate and offer template download
+                st.markdown('#### 📄 Data Template')
+                st.markdown('Download an empty CSV template with the same structure for data collection:')
+                
+                # Save template
+                fingerprint = hashlib.md5(json.dumps(sorted([str(c) for c in raw.columns]), sort_keys=True).encode()).hexdigest()[:8]
+                try:
+                    save_template(schema, fingerprint, 'credit')
+                    template_path = get_current_template(fingerprint)
+                    if template_path:
+                        template_df = pd.read_csv(template_path)
+                        st.download_button('Download Template', template_df.to_csv(index=False).encode(), 'credit_data_template.csv', 'text/csv')
+                except Exception as e:
+                    st.info(f'Template generation skipped: {e}')
+                
+                # Let user confirm/modify schema
+                st.markdown('#### Confirm Schema')
+                target_col = st.selectbox('Select Target Variable', 
+                    [schema.suggested_target] + [c.name for c in schema.columns if c.name != schema.suggested_target],
+                    index=0 if schema.suggested_target else 0)
+                
+                feature_cols = st.multiselect('Select Feature Columns',
+                    [c.name for c in schema.columns if c.name != target_col],
+                    default=schema.suggested_features)
+                
+                id_cols = st.multiselect('Select ID Columns (to exclude)',
+                    [c.name for c in schema.columns],
+                    default=schema.suggested_ids)
+                
+                if st.button('Continue to Training', type='primary'):
+                    # Update schema based on user selection
+                    for c in schema.columns:
+                        if c.name == target_col:
+                            c.suggested_role = 'target'
+                        elif c.name in feature_cols:
+                            c.suggested_role = 'feature'
+                        elif c.name in id_cols:
+                            c.suggested_role = 'id'
+                        else:
+                            c.suggested_role = 'ignore'
+                    
+                    schema.suggested_target = target_col
+                    schema.suggested_features = feature_cols
+                    
+                    d, validation_result = validate_flexible(raw, schema, training=True)
+                    
+                    # Store in session state to persist after button click
+                    st.session_state.credit_validated = True
+                    st.session_state.credit_validation_data = d
+                    st.session_state.credit_validation_result = validation_result
+                    st.session_state.credit_schema = schema
+                    st.session_state.credit_raw = raw
+                    st.session_state.credit_training_step = 3
+                    st.rerun()
+            
+            # Step 3: Train
+            elif st.session_state.credit_training_step == 3:
+                st.markdown('### Step 3: Train Model')
+                
+                # If already validated, show training UI
+                if st.session_state.get('credit_validated', False):
+                    d = st.session_state.credit_validation_data
+                    validation_result = st.session_state.credit_validation_result
+                    schema = st.session_state.credit_schema
+                    raw = st.session_state.credit_raw
+                    
+                    # Show validation results
+                    if validation_result['issues']:
+                        st.markdown('#### Validation Issues')
+                        for issue in validation_result['issues']:
+                            level_icon = '⚠️' if issue['level'] == 'warning' else '❌'
+                            st.markdown(f"{level_icon} **{issue.get('column', 'General')}:** {issue['message']}")
+                    
+                    if validation_result['valid']:
+                        st.success('✅ Dataset validated successfully!')
+                        st.dataframe(d.head(30), use_container_width=True, hide_index=True)
+                        
+                        # Auto-clean data (temporarily disabled due to type conversion issues)
+                        # st.markdown('#### 🔧 Auto Data Cleaning')
+                        # d_cleaned, cleaning_report = auto_clean_dataset(d, schema)
+                        # if cleaning_report['fixes_applied']:
+                        #     st.info(f"**Data cleaning applied:**")
+                        #     for fix in cleaning_report['fixes_applied']:
+                        #         st.markdown(f"- {fix}")
+                        #     st.caption(f"Rows: {cleaning_report['original_rows']:,} → {cleaning_report['final_rows']:,}")
+                        # else:
+                        #     st.success("✅ No data quality issues detected")
+                        d_cleaned = d
+                        
+                        # Algorithm selection
+                        algs = st.multiselect('Algorithms',['Logistic Regression','Random Forest','XGBoost'],
+                            default=['Logistic Regression','XGBoost'],key='alg_credit_flex')
+                        
+                        if st.button('Train model',type='primary',disabled=not algs,key='btn_train_flex'):
+                            try:
+                                st.write('Starting training...')
+                                with st.status('Training flexible schema models…',expanded=True) as s:
+                                    st.write('Using auto-detected schema'); st.write('Creating train/validation/test splits')
+                                    # Preprocess data using the schema
+                                    d_processed = apply_flexible_preprocessing(d_cleaned, schema)
+                                    st.write(f'Preprocessed: {d_processed.shape[1]} features')
+                                    # Use columns that actually exist after preprocessing
+                                    # Target column should be preserved during preprocessing
+                                    target_col = schema.suggested_target
+                                    if target_col not in d_processed.columns:
+                                        raise ValueError(f"Target column '{target_col}' not found after preprocessing")
+                                    # Use all columns except target as features
+                                    feature_cols = [c for c in d_processed.columns if c != target_col]
+                                    runs,best=train_credit(d_processed,algs,feature_columns=feature_cols,target_column=target_col); st.write('Evaluating holdout data'); 
+                                    s.update(label='Flexible training complete',state='complete')
+                                st.session_state.credit_training=(runs,best,validation_result)
+                                st.success('Training completed successfully!')
+                                st.session_state.credit_training_step = 4
+                                st.rerun()
+                            except Exception as train_error:
+                                st.error(f'Training failed: {train_error}')
+                                import traceback
+                                st.error(traceback.format_exc())
+                        
+                        if st.button('← Back to Schema Selection'):
+                            for key in ['credit_validated', 'credit_validation_data', 'credit_validation_result', 'credit_schema', 'credit_raw']:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            st.session_state.credit_training_step = 2
+                            st.rerun()
+                
+            # Step 4: Save & Activate
+            elif st.session_state.credit_training_step == 4:
+                st.markdown('### Step 4: Save & Activate Model')
+                
+                if 'credit_training' in st.session_state:
+                    runs,best,q=st.session_state.credit_training
+                    _top1,_top2=st.columns([3,1])
+                    with _top1: st.subheader('Model Comparison')
+                    with _top2:
+                        if st.button('🗑️ Forget training',key='forget_credit'):
+                            del st.session_state.credit_training
+                            st.session_state.credit_training_step = 3
+                            st.rerun()
+                    rows=[{'Algorithm':x['algorithm'],**x['validation']} for x in runs]
+                    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+                    st.success(f"Recommended: {best['algorithm']} (selected by validation PR-AUC then F1)")
+                    st.subheader('Test Metrics'); show_metrics(best['test'])
+                    ass=interpret('credit',best['test'],q)
+                    render_model_assessment(ass)
+                    if st.button('Save & activate credit model',type='primary',key='save_credit'):
+                        try:
+                            st.write('Saving model to registry...')
+                            vid=reg.save('credit',best,q,ass)
+                            st.write(f'Created version: {vid}')
+                            st.write('Activating model...')
+                            reg.activate('credit',vid)
+                            st.success(f'Credit model {vid} saved and activated.')
+                            # Clear all training-related state to go back to initial state
+                            for key in ['credit_training', 'credit_validated', 'credit_validation_data', 'credit_validation_result', 'credit_schema', 'credit_raw', 'credit_file_hash', 'credit_training_data', 'credit_training_step']:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f'Failed to save/activate model: {e}')
+                            import traceback
+                            st.error(traceback.format_exc())
+            
+            # Back button on all steps > 1
+            if st.session_state.credit_training_step > 1:
+                if st.button('← Start Over'):
+                    for key in ['credit_training', 'credit_validated', 'credit_validation_data', 'credit_validation_result', 'credit_schema', 'credit_raw', 'credit_file_hash', 'credit_training_data', 'credit_training_step']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+
+            # Show current active version and history (only when not in training)
+            if st.session_state.get('credit_training_step', 1) == 1:
+                st.divider()
+                try:
+                    _active_model, _active_meta = reg.active('credit')
+                    render_active_model('credit', _active_meta)
+                except (FileNotFoundError, Exception):
+                    st.info('No active credit model yet. Train and save one above.')
+                versions=reg.versions('credit')
+                if versions:
+                    st.subheader('Saved Versions')
+                    for v in versions:
+                        vid=v['version_id']
+                        col1,col2=st.columns([4,1])
+                        with col1:
+                            st.write(f"**{vid}** — {v.get('algorithm','N/A')} — Trained: {v.get('training_timestamp','N/A')[:19]}")
+                        with col2:
+                            if st.button("🗑️ Delete", key=f"del_credit_{vid}"):
+                                try:
+                                    reg.delete("credit", vid)
+                                    st.success("Model deleted successfully.")
+                                    st.rerun()
+                                except AttributeError:
+                                    st.error(
+                                        "Registry.delete() not found. "
+                                        "Check src/services/registry.py and restart the application."
+                                    )
+                                except Exception as e:
+                                    st.error(f"Delete failed: {str(e)}")
+
+        # — Forecast training tab —
+        with tab_forecast:
+            st.subheader('Train Forecast Model')
+            
+            # Initialize training step
+            if 'forecast_training_step' not in st.session_state:
+                st.session_state.forecast_training_step = 1
+            
+            # Step 1: Upload
+            if st.session_state.forecast_training_step == 1:
+                st.markdown('### Step 1: Upload Training Data')
+                fs=st.file_uploader('Upload forecast training CSV',type='csv',accept_multiple_files=True,key='train_forecast')
+                if fs:
+                    try:
+                        frames=[]
+                        for f in fs: frames.append(read_upload(f))
+                        base=set(frames[0].columns)
+                        if any(set(x.columns)!=base for x in frames[1:]): st.error('Files have different columns. Training blocked.'); st.stop()
+                        raw=pd.concat(frames,ignore_index=True)
+                        
+                        # Store data for next step
+                        st.session_state.forecast_training_data = raw
+                        st.session_state.forecast_file_hash = hashlib.md5(str([f.name for f in fs]).encode()).hexdigest()[:8]
+                        
+                        if st.button('Continue to Schema Analysis', type='primary'):
+                            st.session_state.forecast_training_step = 2
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f'Error processing file: {e}')
+            
+            # Step 2: Schema Analysis
+            elif st.session_state.forecast_training_step == 2:
+                st.markdown('### Step 2: Schema Analysis')
+                raw = st.session_state.forecast_training_data
+                
+                # Flexible mode with auto-detection
+                st.markdown('### 🔍 Auto-Detected Schema')
+                
+                # Check for schema migration requirements first
+                fingerprint = hashlib.md5(json.dumps(sorted([str(c) for c in raw.columns]), sort_keys=True).encode()).hexdigest()[:8]
+                has_saved_schemas = len(get_schema_versions('forecast')) > 0
+                
+                if has_saved_schemas:
+                    migration_check = check_schema_migration_required(fingerprint, 'forecast')
+                    
+                    if migration_check['migration_required']:
+                        st.warning('⚠️ **New Schema Architecture Detected')
+                        st.markdown(f"""
+**Migration Alert:** Your file has a different structure than the previous training data.
+
+**Changes:**
+- {migration_check['message']}
+- Previous Schema: `{migration_check['old_schema'].version_id[:20]}...`
+- Created: {migration_check['old_schema'].created_at}
+""", unsafe_allow_html=True)
+                        
+                        if migration_check['can_compare']:
+                            comp = migration_check['comparison']
+                            st.markdown('**Detailed Changes:**')
+                            if comp['added_features']:
+                                st.markdown(f"✅ **Added Features:** {', '.join(comp['added_features'][:5])}")
+                            if comp['removed_features']:
+                                st.markdown(f"❌ **Removed Features:** {', '.join(comp['removed_features'][:5])}")
+                            if comp['target_changed']:
+                                st.markdown(f"🎯 **Target Changed:** `{comp['old_target']}` → `{comp['new_target']}`")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button('✅ Yes, Migrate to New Architecture', type='primary', key='migrate_forecast'):
+                                st.session_state.forecast_migration_confirmed = True
+                                st.rerun()
+                        with col2:
+                            if st.button('❌ No, Keep Current Architecture', key='keep_forecast'):
+                                st.session_state.forecast_migration_confirmed = False
+                                st.stop()
+                        
+                        if not st.session_state.get('forecast_migration_confirmed', False):
+                            st.stop()
+                
+                # First get rule-based schema
+                rule_based_schema = analyze_dataframe(raw)
+                
+                # Initialize force_refresh (will be shown conditionally below)
+                force_refresh = False
+                
+                # Enhance with SLM if available (using cache) - use forecast-specific function
+                with st.spinner('🤖 Analyzing schema...'):
+                    schema = enhance_schema_with_slm_forecast(raw, rule_based_schema, force_slm=force_refresh)
+                
+                # Show cache/AI status only if there are saved schemas to compare
+                if has_saved_schemas:
+                    # Add force refresh option
+                    force_refresh = st.checkbox('🔄 Force AI Re-analysis (ignore cache)', value=False, key='forecast_refresh')
+                    
+                    # Show cache status
+                    if hasattr(schema, 'from_cache') and schema.from_cache:
+                        st.info('⚡ Using cached schema analysis (instant loading)')
+                    elif force_refresh:
+                        st.success('✅ AI re-analysis complete')
+                    else:
+                        st.info('ℹ️ New schema detected - using AI analysis')
+                    
+                    # Show SLM status
+                    if hasattr(schema, 'slm_reasoning') and schema.slm_reasoning:
+                        st.success('✅ Enhanced with AI-powered analysis')
+                    else:
+                        st.info('ℹ️ Using rule-based analysis (AI unavailable)')
+                
+                # Show detected schema
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Detected Task Type:** {schema.task_type.title()}")
+                    st.markdown(f"**Suggested Target:** `{schema.suggested_target or 'None detected'}`")
+                with col2:
+                    st.markdown(f"**Suggested Features:** {len(schema.suggested_features)} columns")
+                    st.markdown(f"**Suggested IDs:** {len(schema.suggested_ids)} columns")
+                
+                # Show AI reasoning if available
+                if hasattr(schema, 'slm_reasoning') and schema.slm_reasoning:
+                    with st.expander('🧠 AI Analysis Details'):
+                        if schema.slm_reasoning.get('target'):
+                            st.markdown(f"**Target Reasoning:** {schema.slm_reasoning['target']}")
+                        if schema.slm_reasoning.get('task'):
+                            st.markdown(f"**Task Type Reasoning:** {schema.slm_reasoning['task']}")
+                        if schema.slm_reasoning.get('confidence'):
+                            confidence = schema.slm_reasoning['confidence']
+                            st.markdown(f"**AI Confidence:** {confidence:.0%}")
+                        
+                        if schema.slm_suggestions:
+                            st.markdown('**AI Suggestions:**')
+                            for suggestion in schema.slm_suggestions:
+                                st.markdown(f"- {suggestion}")
+                
+                # Show column analysis
+                st.markdown('#### Column Analysis')
+                col_df = pd.DataFrame([{
+                    'Column': c.name,
+                    'Type': c.dtype,
+                    'Role': c.suggested_role,
+                    'Missing': c.missing_count,
+                    'Unique': c.unique_count,
+                    'Confidence': f"{c.confidence:.0%}"
+                } for c in schema.columns])
+                st.dataframe(col_df, use_container_width=True, hide_index=True)
+                
+                # Generate and offer template download
+                st.markdown('#### 📄 Data Template')
+                st.markdown('Download an empty CSV template with the same structure for data collection:')
+                
+                # Save template
+                fingerprint = hashlib.md5(json.dumps(sorted([str(c) for c in raw.columns]), sort_keys=True).encode()).hexdigest()[:8]
+                try:
+                    save_template(schema, fingerprint, 'forecast')
+                    template_path = get_current_template(fingerprint)
+                    if template_path:
+                        template_df = pd.read_csv(template_path)
+                        st.download_button('Download Template', template_df.to_csv(index=False).encode(), 'forecast_data_template.csv', 'text/csv')
+                except Exception as e:
+                    st.info(f'Template generation skipped: {e}')
+                
+                # Schema evolution tracking for forecast
+                st.markdown('#### 📊 Schema Evolution')
+                latest_schema = get_latest_schema_version('forecast')
+                if latest_schema and latest_schema.fingerprint != fingerprint:
+                    st.info('🔄 New schema structure detected!')
+                    comparison = compare_schemas(latest_schema.fingerprint, fingerprint)
+                    if comparison.get('can_compare'):
+                        st.markdown(f"**Previous Version:** {comparison['old_version'][:20]}...")
+                        st.markdown(f"**New Version:** {comparison['new_version'][:20]}...")
+                        
+                        if comparison['added_features']:
+                            st.markdown(f"**✅ Added Features ({len(comparison['added_features'])}):** {', '.join(comparison['added_features'][:5])}")
+                        if comparison['removed_features']:
+                            st.markdown(f"**❌ Removed Features ({len(comparison['removed_features'])}):** {', '.join(comparison['removed_features'][:5])}")
+                        if comparison['target_changed']:
+                            st.markdown(f"**🎯 Target Changed:** `{comparison['old_target']}` → `{comparison['new_target']}`")
+                
+                # Let user confirm/modify schema
+                st.markdown('#### Confirm Schema')
+                target_col = st.selectbox('Select Target Variable', 
+                    [schema.suggested_target] + [c.name for c in schema.columns if c.name != schema.suggested_target],
+                    index=0 if schema.suggested_target else 0)
+                
+                feature_cols = st.multiselect('Select Feature Columns',
+                    [c.name for c in schema.columns if c.name != target_col],
+                    default=schema.suggested_features)
+                
+                id_cols = st.multiselect('Select ID Columns (to exclude)',
+                    [c.name for c in schema.columns],
+                    default=schema.suggested_ids)
+                
+                if st.button('Continue to Training', type='primary'):
+                    # Update schema based on user selection
+                    for c in schema.columns:
+                        if c.name == target_col:
+                            c.suggested_role = 'target'
+                        elif c.name in feature_cols:
+                            c.suggested_role = 'feature'
+                        elif c.name in id_cols:
+                            c.suggested_role = 'id'
+                        else:
+                            c.suggested_role = 'ignore'
+                    
+                    schema.suggested_target = target_col
+                    schema.suggested_features = feature_cols
+                    
+                    d, validation_result = validate_flexible(raw, schema, training=True)
+                    
+                    # Store in session state to persist after button click
+                    st.session_state.forecast_validated = True
+                    st.session_state.forecast_validation_data = d
+                    st.session_state.forecast_validation_result = validation_result
+                    st.session_state.forecast_schema = schema
+                    st.session_state.forecast_raw = raw
+                    st.session_state.forecast_training_step = 3
+                    st.rerun()
+            
+            # Step 3: Train
+            elif st.session_state.forecast_training_step == 3:
+                st.markdown('### Step 3: Train Model')
+                
+                # If already validated, show training UI
+                if st.session_state.get('forecast_validated', False):
+                    d = st.session_state.forecast_validation_data
+                    validation_result = st.session_state.forecast_validation_result
+                    schema = st.session_state.forecast_schema
+                    raw = st.session_state.forecast_raw
+                    
+                    # Show validation results
+                    if validation_result['issues']:
+                        st.markdown('#### Validation Issues')
+                        for issue in validation_result['issues']:
+                            level_icon = '⚠️' if issue['level'] == 'warning' else '❌'
+                            st.markdown(f"{level_icon} **{issue.get('column', 'General')}:** {issue['message']}")
+                    
+                    if validation_result['valid']:
+                        st.success('✅ Dataset validated successfully!')
+                        st.dataframe(d.head(30), use_container_width=True, hide_index=True)
+                        
+                        # Auto-clean data (temporarily disabled due to type conversion issues)
+                        # st.markdown('#### 🔧 Auto Data Cleaning')
+                        # d_cleaned, cleaning_report = auto_clean_dataset(d, schema)
+                        # if cleaning_report['fixes_applied']:
+                        #     st.info(f"**Data cleaning applied:**")
+                        #     for fix in cleaning_report['fixes_applied']:
+                        #         st.markdown(f"- {fix}")
+                        #     st.caption(f"Rows: {cleaning_report['original_rows']:,} → {cleaning_report['final_rows']:,}")
+                        # else:
+                        #     st.success("✅ No data quality issues detected")
+                        d_cleaned = d
+                        
+                        # Algorithm selection
+                        algs = st.multiselect('Algorithms',['Ridge','Random Forest','XGBoost'],
+                            default=['Ridge','XGBoost'],key='alg_forecast_flex')
+                        
+                        if st.button('Train model',type='primary',disabled=not algs,key='btn_train_flex_forecast'):
+                            try:
+                                st.write('Starting training...')
+                                with st.status('Training flexible schema models…',expanded=True) as s:
+                                    st.write('Using auto-detected schema'); st.write('Creating chronological splits')
+                                    # For forecast, preprocessing happens inside train_forecast via forecast_features
+                                    # Pass target column, but let train_forecast determine features from transformed data
+                                    target_col = schema.suggested_target
+                                    runs,best=train_forecast(d_cleaned,algs,feature_columns=None,target_column=target_col); st.write('Evaluating holdout data'); 
+                                    s.update(label='Flexible training complete',state='complete')
+                                st.session_state.forecast_training=(runs,best,validation_result)
+                                st.success('Training completed successfully!')
+                                st.session_state.forecast_training_step = 4
+                                st.rerun()
+                            except Exception as train_error:
+                                st.error(f'Training failed: {train_error}')
+                                import traceback
+                                st.error(traceback.format_exc())
+                        
+                        if st.button('← Back to Schema Selection'):
+                            for key in ['forecast_validated', 'forecast_validation_data', 'forecast_validation_result', 'forecast_schema', 'forecast_raw']:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            st.session_state.forecast_training_step = 2
+                            st.rerun()
+            
+            # Step 4: Save & Activate
+            elif st.session_state.forecast_training_step == 4:
+                st.markdown('### Step 4: Save & Activate Model')
+                
+                if 'forecast_training' in st.session_state:
+                    runs,best,q=st.session_state.forecast_training
+                    _top1,_top2=st.columns([3,1])
+                    with _top1: st.subheader('Model Comparison')
+                    with _top2:
+                        if st.button('🗑️ Forget training',key='forget_forecast'):
+                            del st.session_state.forecast_training
+                            st.session_state.forecast_training_step = 3
+                            st.rerun()
+                    rows=[{'Algorithm':x['algorithm'],**x['validation']} for x in runs]
+                    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+                    st.success(f"Recommended: {best['algorithm']} (lowest validation WAPE)")
+                    st.subheader('Test Metrics'); show_metrics(best['test'])
+                    ass=interpret('forecast',best['test'],q)
+                    render_model_assessment(ass)
+                    if st.button('Save & activate forecast model',type='primary',key='save_forecast'):
+                        try:
+                            st.write('Saving model to registry...')
+                            vid=reg.save('forecast',best,q,ass)
+                            st.write(f'Created version: {vid}')
+                            st.write('Activating model...')
+                            reg.activate('forecast',vid)
+                            st.success(f'Forecast model {vid} saved and activated.')
+                            # Clear all training-related state to go back to initial state
+                            for key in ['forecast_training', 'forecast_validated', 'forecast_validation_data', 'forecast_validation_result', 'forecast_schema', 'forecast_raw', 'forecast_file_hash', 'forecast_training_data', 'forecast_training_step']:
+                                if key in st.session_state:
+                                    del st.session_state[key]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f'Failed to save/activate model: {e}')
+                            import traceback
+                            st.error(traceback.format_exc())
+            
+            # Back button on all steps > 1
+            if st.session_state.forecast_training_step > 1:
+                if st.button('← Start Over'):
+                    for key in ['forecast_training', 'forecast_validated', 'forecast_validation_data', 'forecast_validation_result', 'forecast_schema', 'forecast_raw', 'forecast_file_hash', 'forecast_training_data', 'forecast_training_step']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+
+            # Show current active version and history (only when not in training)
+            if st.session_state.get('forecast_training_step', 1) == 1:
+                st.divider()
+                try:
+                    _active_model, _active_meta = reg.active('forecast')
+                    render_active_model('forecast', _active_meta)
+                except (FileNotFoundError, Exception):
+                    st.info('No active forecast model yet. Train and save one above.')
+                versions=reg.versions('forecast')
+                if versions:
+                    st.subheader('Saved Versions')
+                for v in versions:
+                    vid=v['version_id']
+                    col1,col2=st.columns([4,1])
+                    with col1:
+                        st.write(f"**{vid}** — {v.get('algorithm','N/A')} — Trained: {v.get('training_timestamp','N/A')[:19]}")
+                    with col2:
+                        if st.button('🗑️ Delete',key=f'del_forecast_{vid}'):
+                            reg.delete('forecast',vid)
+                            st.rerun()
+
+    # ── Page 2: Credit Risk Agent ────────────────────────────────────
+    elif page=='Credit Risk Agent':
+        title('Agent Testing','Credit Risk Agent','Upload credit data and test the agent. View risk scores, risk tiers, and per-client explanations.')
+
+        try: model,meta=reg.active('credit')
+        except:
+            st.warning('No active credit model. Train and activate one on Model Training first.'); st.stop()
+
+        st.caption(f"Active model: **{meta['version_id']}** — {meta['algorithm']}")
+
+        # If results exist, show only results (hide upload section)
+        if 'credit_agent_results' in st.session_state:
+            results = st.session_state.credit_agent_results
+            # Handle both old and new session state formats
+            if len(results) == 6:
+                res, meta, summary, advice, explanations, suggested_search_field = results
+            elif len(results) == 5:
+                res, meta, summary, advice, explanations = results
+                suggested_search_field = suggest_best_search_field(res)
+            else:
+                res, meta, summary, advice = results
+                explanations = []
+                suggested_search_field = suggest_best_search_field(res) if res is not None else None
+
+            # Show "New Analysis" button at top
+            if st.button('🔄 New Analysis', type='secondary'):
+                del st.session_state.credit_agent_results
+                st.rerun()
+
+            st.subheader('Risk Overview')
+            render_risk_kpis(summary)
+
+            st.subheader('Filter Results')
+            
+            # Build search field options with AI suggestion first
+            search_options = ['All Columns']
+            if suggested_search_field and suggested_search_field in res.columns:
+                search_options.insert(0, f"{suggested_search_field} (AI suggested)")
+            # Add other important columns
+            for col in ['client_id', 'name', 'customer_id', 'customer_name']:
+                if col in res.columns and col != suggested_search_field:
+                    if f"{col} (AI suggested)" not in search_options:
+                        search_options.append(col)
+            
+            # Search with field selector
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                search_field_display = st.selectbox('Search by', search_options, key='search_field_credit')
+                # Extract actual field name from display
+                if ' (AI suggested)' in search_field_display:
+                    search_field = search_field_display.replace(' (AI suggested)', '')
+                else:
+                    search_field = search_field_display
+            with col2:
+                search = st.text_input('Search', key='search_credit', placeholder=f'Search by {search_field}...')
+            
+            # Simplified risk filter
+            risk_filter = st.radio('Risk Filter', ['All Clients', 'High Risk Only', 'Medium+ Risk'], horizontal=True, key='risk_filter_credit')
+            
+            # Apply filters
+            if risk_filter == 'High Risk Only':
+                filt = res[res['risk_tier'] == 'HIGH']
+            elif risk_filter == 'Medium+ Risk':
+                filt = res[res['risk_tier'].isin(['HIGH', 'MEDIUM'])]
+            else:
+                filt = res.copy()
+            
+            # Apply search
+            if search:
+                if search_field != 'All Columns' and search_field in filt.columns:
+                    filt = filt[filt[search_field].astype(str).str.contains(search, case=False, na=False)]
+                else:
+                    filt = filt[filt.astype(str).apply(lambda r: r.str.contains(search, case=False, na=False).any(), axis=1)]
+            
+            st.caption(f'{len(filt):,} of {len(res):,} records')
+            
+            # Display simplified results
+            if len(filt) > 0:
+                # Create simplified display dataframe
+                display_cols = []
+                for i, (idx, row) in enumerate(filt.iterrows()):
+                    client_id = str(row.get('client_id', idx)) if 'client_id' in row else str(idx)
+                    risk_score = round(float(row['risk_score']), 3)
+                    risk_tier = row['risk_tier']
+                    
+                    # Risk status emoji
+                    if risk_tier == 'HIGH':
+                        status = '⚠️ Risky'
+                    elif risk_tier == 'MEDIUM':
+                        status = '⚡ Moderate'
+                    else:
+                        status = '✅ Safe'
+                    
+                    # Get explanation if available
+                    explanation = ''
+                    if explanations and i < len(explanations):
+                        indicators = explanations[i].get('unusual_indicators', [])
+                        if indicators:
+                            top_features = [ind.get('feature', '') for ind in indicators[:2]]
+                            explanation = ', '.join(top_features)
+                    
+                    display_cols.append({
+                        'Client ID': client_id,
+                        'Risk Score': risk_score,
+                        'Risk Tier': risk_tier,
+                        'Status': status,
+                        'Key Risk Factors': explanation
+                    })
+                
+                display_df = pd.DataFrame(display_cols)
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                st.info('No records match your filters.')
+            
+            # Download buttons
+            a, b = st.columns(2)
+            a.download_button('Download CSV', filt.to_csv(index=False).encode(), 'credit_risk_results.csv', 'text/csv', use_container_width=True)
+            b.download_button('Download Excel', excel_bytes(filt), 'credit_risk_results.xlsx', use_container_width=True)
+        
+        # If no results, show upload section
+        else:
+            with st.expander('📋 Download template & field docs'):
+                st.download_button('Download credit template',template('credit').to_csv(index=False).encode(),'credit_risk_template.csv','text/csv')
+                st.dataframe(documentation('credit'),use_container_width=True,hide_index=True)
+
+            f=st.file_uploader('Upload credit data CSV',type='csv',key='agent_credit_upload_v2')
+            if f:
+                try:
+                    raw=read_upload(f)
+                    # Use flexible schema validation for agent testing
+                    schema = analyze_dataframe(raw)
+                    d, validation_result = validate_flexible(raw, schema, training=False)
+                    
+                    # Show validation results
+                    if validation_result['issues']:
+                        st.markdown('#### Validation Issues')
+                        for issue in validation_result['issues']:
+                            level_icon = '⚠️' if issue['level'] == 'warning' else '❌'
+                            st.markdown(f"{level_icon} **{issue.get('column', 'General')}:** {issue['message']}")
+                    
+                    if validation_result['valid']:
+                        st.success('✅ Dataset validated successfully!')
+                        st.dataframe(d.head(20),use_container_width=True,hide_index=True)
+                        if st.button('Run Credit Risk Agent',type='primary',key='run_credit_agent_v2'):
+                            progress_container = st.empty()
+                            progress_container.info('Running credit risk agent…')
+                            
+                            agent=CreditRiskAgent(model_type='xgboost')
+                            # Use the active pipeline model directly for predictions
+                            feats=meta.get('features', [])
+                            
+                            # Fallback: if features not in metadata, try to get from model pipeline or schema
+                            if not feats:
+                                try:
+                                    # Try to get feature names from the model's pipeline
+                                    if hasattr(model, 'feature_names_in_'):
+                                        feats = list(model.feature_names_in_)
+                                    elif hasattr(model, 'get_feature_names_out'):
+                                        feats = list(model.get_feature_names_out())
+                                except:
+                                    pass
+                                
+                                # If still no features, use schema features
+                                if not feats:
+                                    feats = schema.suggested_features
+                                    st.warning(f'Using schema features ({len(feats)} columns). Model metadata was missing feature names.')
+                            
+                            # Ensure columns exist and convert to numeric
+                            missing_cols = [f for f in feats if f not in d.columns]
+                            if missing_cols:
+                                progress_container.error(f'Missing required columns: {missing_cols}')
+                                st.stop()
+                            
+                            proba=model.predict_proba(d[feats].apply(pd.to_numeric,errors='coerce'))[:,1]
+                            tier=np.where(proba>=.65,'HIGH',np.where(proba>=.35,'MEDIUM','LOW'))
+                            res=d.copy(); res['risk_score']=proba; res['risk_tier']=tier
+                            summary={'average_risk':float(proba.mean()),'high_risk':int((tier=='HIGH').sum()),'medium_risk':int((tier=='MEDIUM').sum()),'low_risk':int((tier=='LOW').sum()),'total_records':len(d)}
+                            advice=interpret('credit',summary,validation_result.dict())
+                            
+                            # Get explanations from the agent
+                            try:
+                                explanations = agent.explain(d, top_k=3)
+                            except:
+                                explanations = []
+                            
+                            # AI suggests the best search field
+                            # AI suggests the best search field
+                            suggested_search_field = suggest_best_search_field(d)
+                            
+                            progress_container.success("Analysis complete!")
+                            st.session_state.credit_agent_results=(res,meta,summary,advice,explanations,suggested_search_field)
+                except Exception as e: st.error(f"Error: {e}")
+
+# ── Page 3: Forecast Agent ───────────────────────────────────────
+elif page=="Forecast Agent":
+    title("Agent Testing","Forecast Agent","Upload demand data and test the forecast agent. View predictions, anomalies, and stockout risks.")
+
+    try: model,meta=reg.active("forecast")
+    except:
+        st.warning("No active forecast model. Train and activate one on Model Training first."); st.stop()
+
+    st.caption(f"Active model: **{meta["version_id"]}** — {meta["algorithm"]}")
+
+    # If results exist, show only results (hide upload section)
+    if "forecast_agent_results" in st.session_state:
+            else:
+                res, meta, summary, advice = results
+                suggested_search_field = suggest_best_search_field(res) if res is not None else None
+
+            # Show "New Analysis" button at top
+            if st.button('🔄 New Analysis', type='secondary'):
+                del st.session_state.forecast_agent_results
+                st.rerun()
+
+            st.subheader('Forecast Overview')
+            show_metrics({k:v for k,v in summary.items() if k not in ('anomalies','stockout_risks')})
+            a,b=st.columns(2)
+            a.metric('⚠️ Anomalies Detected',summary.get('anomalies',0))
+            b.metric('📦 Stockout Risks',summary.get('stockout_risks',0))
+
+            st.subheader('Filter Results')
+            
+            # Build search field options with AI suggestion first
+            search_options = ['All Columns']
+            if suggested_search_field and suggested_search_field in res.columns:
+                search_options.insert(0, f"{suggested_search_field} (AI suggested)")
+            # Add other important columns
+            for col in ['store_id', 'product_id', 'category', 'region']:
+                if col in res.columns and col != suggested_search_field:
+                    if f"{col} (AI suggested)" not in search_options:
+                        search_options.append(col)
+            
+            # Search with field selector
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                search_field_display = st.selectbox('Search by', search_options, key='search_field_forecast')
+                # Extract actual field name from display
+                if ' (AI suggested)' in search_field_display:
+                    search_field = search_field_display.replace(' (AI suggested)', '')
+                else:
+                    search_field = search_field_display
+            with col2:
+                search = st.text_input('Search', key='search_forecast', placeholder=f'Search by {search_field}...')
+            
+            stores=sorted(res.store_id.astype(str).unique()) if 'store_id' in res.columns else []
+            cats=sorted(res.category.astype(str).unique()) if 'category' in res.columns else []
+            sel_stores=st.multiselect('Store',stores,default=stores,key='filter_store') if stores else stores
+            sel_cats=st.multiselect('Category',cats,default=cats,key='filter_cat') if cats else cats
+            filt=res.copy()
+            if sel_stores: filt=filt[filt.store_id.astype(str).isin(sel_stores)]
+            if sel_cats: filt=filt[filt.category.astype(str).isin(sel_cats)]
+            show_anomalies=st.checkbox('Show anomalies only',key='anomaly_only')
+            if show_anomalies: filt=filt[filt.is_anomaly==True]
+            if search:
+                if search_field != 'All Columns' and search_field in filt.columns:
+                    filt = filt[filt[search_field].astype(str).str.contains(search, case=False, na=False)]
+                else:
+                    filt = filt[filt.astype(str).apply(lambda r:r.str.contains(search, case=False, na=False).any(), axis=1)]
+            st.caption(f'{len(filt):,} of {len(res):,} records')
+            st.dataframe(filt.head(2000),use_container_width=True,hide_index=True)
+
+            a,b=st.columns(2)
+            a.download_button('Download CSV',filt.to_csv(index=False).encode(),'forecast_results.csv','text/csv',use_container_width=True)
+            b.download_button('Download Excel',excel_bytes(filt),'forecast_results.xlsx',use_container_width=True)
+        
+        # If no results, show upload section
+        else:
+            with st.expander('📋 Download template & field docs'):
+                st.download_button('Download forecast template',template('forecast').to_csv(index=False).encode(),'demand_forecast_template.csv','text/csv')
+                st.dataframe(documentation('forecast'),use_container_width=True,hide_index=True)
+
+            f=st.file_uploader('Upload forecast data CSV',type='csv',key='agent_forecast_upload_v2')
+            if f:
+                try:
+                    raw=read_upload(f)
+                    # Use flexible schema validation for agent testing
+                    schema = analyze_dataframe(raw)
+                    d, validation_result = validate_flexible(raw, schema, training=False)
+                    
+                    # Show validation results
+                    if validation_result['issues']:
+                        st.markdown('#### Validation Issues')
+                        for issue in validation_result['issues']:
+                            level_icon = '⚠️' if issue['level'] == 'warning' else '❌'
+                            st.markdown(f"{level_icon} **{issue.get('column', 'General')}:** {issue['message']}")
+                    
+                    if validation_result['valid']:
+                        st.success('✅ Dataset validated successfully!')
+                        st.dataframe(d.head(20),use_container_width=True,hide_index=True)
+                        if st.button('Run Forecast Agent',type='primary',key='run_forecast_agent_v2'):
+                            progress_container = st.empty()
+                            progress_container.info('Running forecast agent…')
+                            
+                            fd=forecast_features(d)
+                            feats=meta.get('features', [])
+                            
+                            # Fallback: if features not in metadata, use schema features
+                            if not feats:
+                                try:
+                                    # Try to get feature names from the model's pipeline
+                                    if hasattr(model, 'feature_names_in_'):
+                                        feats = list(model.feature_names_in_)
+                                    elif hasattr(model, 'get_feature_names_out'):
+                                        feats = list(model.get_feature_names_out())
+                                except:
+                                    pass
+                                
+                                # If still no features, use schema features
+                                if not feats:
+                                    feats = [c for c in fd.columns if c != schema.suggested_target]
+                                    st.warning(f'Using available features ({len(feats)} columns). Model metadata was missing feature names.')
+                            
+                            # Ensure columns exist
+                            missing_cols = [f for f in feats if f not in fd.columns]
+                            if missing_cols:
+                                progress_container.error(f'Missing required columns: {missing_cols}')
+                                st.stop()
+                            
+                            pred=np.clip(model.predict(fd[feats]),0,None)
+                            res=fd.copy(); res['forecast_units_sold']=pred
+                            res['residual']=res.units_sold-pred
+                            sd=max(float(res.residual.std()),1e-9)
+                            res['is_anomaly']=res.residual.abs()>2*sd
+                            res['stockout_risk']=res.inventory_level<2*pred if 'inventory_level' in res.columns else False
+                            summary=regression(res.units_sold,pred)
+                            summary['anomalies']=int(res.is_anomaly.sum())
+                            summary['stockout_risks']=int(res.stockout_risk.sum()) if 'stockout_risk' in res.columns else 0
+                            advice=interpret('forecast',summary,validation_result.dict())
+                            
+                            # AI suggests the best search field
+                            suggested_search_field = suggest_best_search_field(res)
+                            
+                            progress_container.success('Forecast complete!')
+                            st.session_state.forecast_agent_results=(res,meta,summary,advice,suggested_search_field)
+                except Exception as e: st.error(f'Error: {e}')
+
+# ══════════════════════════════════════════════════════════════════════
+#  COMPANY PAGES
+# ══════════════════════════════════════════════════════════════════════
+else:
+    ws=Workspace(company)
+
+    # ── Page 1: Credit Risk Analysis ─────────────────────────────────
+    if page=='Credit Risk Analysis':
+        title('Payment Risk','Credit Risk Analysis','Upload your data, run the credit risk agent trained by the admin, and download risk assessments.')
+
+        try: model,meta=reg.active('credit')
+        except:
+            st.warning('No credit risk model available yet. Please contact the platform administrator.'); st.stop()
+
+        st.caption(f"Model version: {meta['version_id']}")
+
+        with st.expander('📋 Download template & field documentation'):
+            st.download_button('Download credit template',template('credit').to_csv(index=False).encode(),'credit_risk_template.csv','text/csv',key='co_credit_tpl')
+            st.dataframe(documentation('credit'),use_container_width=True,hide_index=True)
+
+        f=st.file_uploader('Upload your credit data CSV',type='csv',key='co_credit_upload')
+        if f:
+            try:
+                raw=read_upload(f); d,r=validate(raw,'credit',False); report_ui(r)
+                st.dataframe(d.head(20),use_container_width=True,hide_index=True)
+                if r.valid and st.button('Analyze Credit Risk',type='primary',key='co_run_credit'):
+                    with st.status('Running credit risk analysis…',expanded=True) as s:
+                        feats=meta['features']
+                        proba=model.predict_proba(d[feats].apply(pd.to_numeric,errors='coerce'))[:,1]
+                        tier=np.where(proba>=.65,'HIGH',np.where(proba>=.35,'MEDIUM','LOW'))
+                        res=d.copy(); res['risk_score']=proba; res['risk_tier']=tier
+                        summary={'average_risk':float(proba.mean()),'high_risk':int((tier=='HIGH').sum()),'medium_risk':int((tier=='MEDIUM').sum()),'low_risk':int((tier=='LOW').sum()),'total_records':len(d)}
+                        advice=interpret('credit',summary,r.dict())
+                        aid=ws.save('credit',d,res,{'model_version':meta['version_id'],'summary':summary,'slm':advice})
+                        s.update(label='Analysis complete',state='complete')
+                    st.session_state.co_credit_results=(res,meta,summary,advice,aid)
+            except Exception as e: st.error(f'Error: {e}')
+
+        if 'co_credit_results' in st.session_state:
+            res,meta,summary,advice,aid=st.session_state.co_credit_results
+
+            st.subheader('Risk Overview')
+            render_risk_kpis(summary)
+
+            st.subheader('Filter Results')
+            search=st.text_input('Search',key='co_search_credit')
+            tiers=st.multiselect('Risk tier',sorted(res.risk_tier.unique()),default=sorted(res.risk_tier.unique()),key='co_filter_tier')
+            lo,hi=st.slider('Risk score range',0.0,1.0,(0.0,1.0),key='co_filter_score')
+            filt=res[res.risk_tier.isin(tiers) & res.risk_score.between(lo,hi)]
+            if search: filt=filt[filt.astype(str).apply(lambda r:r.str.contains(search,case=False,na=False).any(),axis=1)]
+            st.caption(f'{len(filt):,} of {len(res):,} records')
+            st.dataframe(filt.head(2000),use_container_width=True,hide_index=True)
+
+            a,b,c=st.columns(3)
+            a.download_button('Download CSV',filt.to_csv(index=False).encode(),f'{aid}_filtered.csv','text/csv',use_container_width=True)
+            b.download_button('Download Excel',excel_bytes(filt),f'{aid}_filtered.xlsx',use_container_width=True)
+            report=json.dumps({'analysis_id':aid,'type':'credit','model_version':meta['version_id'],'summary':summary,'recommendations':advice},indent=2,default=str)
+            c.download_button('Download Report',report.encode(),f'{aid}_report.json','application/json',use_container_width=True)
+
+        st.divider()
+        st.subheader('Recent Analyses')
+        hist=ws.history()
+        credit_hist=[h for h in hist if h.get('task')=='credit']
+        # Clean the history data to remove any objects with _repr_html_ methods
+        if credit_hist:
+            cleaned_hist=[]
+            for h in credit_hist:
+                cleaned_h={}
+                for k,v in h.items():
+                    # Convert any non-serializable objects to strings
+                    if hasattr(v, '_repr_html_'):
+                        cleaned_h[k]=str(v)
+                    elif isinstance(v, (dict, list)):
+                        cleaned_h[k]=json.dumps(v, default=str)
+                    else:
+                        cleaned_h[k]=v
+                cleaned_hist.append(cleaned_h)
+            st.dataframe(pd.DataFrame(cleaned_hist),use_container_width=True,hide_index=True)
+        else:
+            st.caption('No previous credit analyses.')
+
+    # ── Page 2: Demand Forecast ──────────────────────────────────────
+    elif page=='Demand Forecast':
+        title('Demand Planning','Demand Forecast','Upload your data, run the forecast agent trained by the admin, and download predictions.')
+
+        try: model,meta=reg.active('forecast')
+        except:
+            st.warning('No forecast model available yet. Please contact the platform administrator.'); st.stop()
+
+        st.caption(f"Model version: {meta['version_id']}")
+
+        with st.expander('📋 Download template & field documentation'):
+            st.download_button('Download forecast template',template('forecast').to_csv(index=False).encode(),'demand_forecast_template.csv','text/csv',key='co_forecast_tpl')
+            st.dataframe(documentation('forecast'),use_container_width=True,hide_index=True)
+
+        f=st.file_uploader('Upload your forecast data CSV',type='csv',key='co_forecast_upload')
+        if f:
+            try:
+                raw=read_upload(f); d,r=validate(raw,'forecast',False); report_ui(r)
+                st.dataframe(d.head(20),use_container_width=True,hide_index=True)
+                if r.valid and st.button('Run Forecast',type='primary',key='co_run_forecast'):
+                    with st.status('Running forecast analysis…',expanded=True) as s:
+                        fd=forecast_features(d)
+                        pred=np.clip(model.predict(fd[meta['features']]),0,None)
+                        res=fd.copy(); res['forecast_units_sold']=pred
+                        res['residual']=res.units_sold-pred
+                        sd=max(float(res.residual.std()),1e-9)
+                        res['is_anomaly']=res.residual.abs()>2*sd
+                        res['stockout_risk']=res.inventory_level<2*pred if 'inventory_level' in res.columns else False
+                        summary=regression(res.units_sold,pred)
+                        summary['anomalies']=int(res.is_anomaly.sum())
+                        summary['stockout_risks']=int(res.stockout_risk.sum()) if 'stockout_risk' in res.columns else 0
+                        advice=interpret('forecast',summary,r.dict())
+                        aid=ws.save('forecast',d,res,{'model_version':meta['version_id'],'summary':summary,'slm':advice})
+                        s.update(label='Forecast complete',state='complete')
+                    st.session_state.co_forecast_results=(res,meta,summary,advice,aid)
+            except Exception as e: st.error(f'Error: {e}')
+
+        if 'co_forecast_results' in st.session_state:
+            res,meta,summary,advice,aid=st.session_state.co_forecast_results
+
+            st.subheader('Forecast Overview')
+            show_metrics({k:v for k,v in summary.items() if k not in ('anomalies','stockout_risks')})
+            a,b=st.columns(2)
+            a.metric('⚠️ Anomalies Detected',summary.get('anomalies',0))
+            b.metric('📦 Stockout Risks',summary.get('stockout_risks',0))
+
+            st.subheader('Filter Results')
+            search=st.text_input('Search',key='co_search_forecast')
+            stores=sorted(res.store_id.astype(str).unique()) if 'store_id' in res.columns else []
+            cats=sorted(res.category.astype(str).unique()) if 'category' in res.columns else []
+            sel_stores=st.multiselect('Store',stores,default=stores,key='co_filter_store') if stores else stores
+            sel_cats=st.multiselect('Category',cats,default=cats,key='co_filter_cat') if cats else cats
+            filt=res.copy()
+            if sel_stores: filt=filt[filt.store_id.astype(str).isin(sel_stores)]
+            if sel_cats: filt=filt[filt.category.astype(str).isin(sel_cats)]
+            show_anomalies=st.checkbox('Show anomalies only',key='co_anomaly_only')
+            if show_anomalies: filt=filt[filt.is_anomaly==True]
+            if search: filt=filt[filt.astype(str).apply(lambda r:r.str.contains(search,case=False,na=False).any(),axis=1)]
+            st.caption(f'{len(filt):,} of {len(res):,} records')
+            st.dataframe(filt.head(2000),use_container_width=True,hide_index=True)
+
+            a,b,c=st.columns(3)
+            a.download_button('Download CSV',filt.to_csv(index=False).encode(),f'{aid}_filtered.csv','text/csv',use_container_width=True)
+            b.download_button('Download Excel',excel_bytes(filt),f'{aid}_filtered.xlsx',use_container_width=True)
+            report=json.dumps({'analysis_id':aid,'type':'forecast','model_version':meta['version_id'],'summary':summary,'recommendations':advice},indent=2,default=str)
+            c.download_button('Download Report',report.encode(),f'{aid}_report.json','application/json',use_container_width=True)
+
+        st.divider()
+        st.subheader('Recent Analyses')
+        hist=ws.history()
+        forecast_hist=[h for h in hist if h.get('task')=='forecast']
+        if forecast_hist:
+            st.dataframe(pd.DataFrame(forecast_hist),use_container_width=True,hide_index=True)
+        else:
+            st.caption('No previous forecast analyses.')

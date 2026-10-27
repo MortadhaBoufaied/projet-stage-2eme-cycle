@@ -1,0 +1,11 @@
+{
+  "company_id": "admin_sandbox",
+  "display_name": "",
+  "currency": "TND",
+  "language": "English",
+  "review_threshold": 0.5,
+  "high_risk_threshold": 0.6,
+  "require_human_approval": true,
+  "recommendation_rules": [],
+  "forbidden_actions": []
+}

@@ -1,0 +1,330 @@
+{
+  "dynamic_runtime_assertions_passed": true,
+  "legacy_domain_specific_references": [
+    {
+      "file": "src/smoke_check.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/smoke_check.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/smoke_check.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/smoke_check.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/smoke_check.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/smoke_check.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "tests/test_requirement_features.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/credit_agent.py",
+      "term": "CREDIT_FEATURES",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/credit_agent.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/credit_agent.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/credit_agent.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/forecast_agent.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/forecast_agent.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/agents/forecast_agent.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/credit_generator.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/credit_generator.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/credit_generator.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/forecasting_generator.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/forecasting_generator.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/data_generator/forecasting_generator.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/ml/training.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/ml/training.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/ml/training.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/analysis.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/augmentation.py",
+      "term": "CREDIT_FEATURES",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/augmentation.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/augmentation.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/augmentation.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/credit_data_quality.py",
+      "term": "CREDIT_FEATURES",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/credit_data_quality.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/credit_data_quality.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/credit_data_quality.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/dataset_catalog.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/dataset_catalog.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/dataset_catalog.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/financial_features.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_dataset_reducer.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_dataset_reducer.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_dataset_reducer.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_schema.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_schema.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/forecast_schema.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "FORECAST_FIELDS",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "CREDIT_FEATURES",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schema.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "CREDIT_FIELDS",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "FORECAST_FIELDS",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "LIMIT_BAL",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "BILL_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "PAY_AMT",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/schemas.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/training_size.py",
+      "term": "units_sold",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/training_size.py",
+      "term": "store_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/services/training_size.py",
+      "term": "product_id",
+      "runtime_ui": false
+    },
+    {
+      "file": "src/ui/app.py",
+      "term": "CREDIT_FIELDS",
+      "runtime_ui": true
+    },
+    {
+      "file": "src/ui/app.py",
+      "term": "FORECAST_FIELDS",
+      "runtime_ui": true
+    },
+    {
+      "file": "src/ui/app.py",
+      "term": "store_id",
+      "runtime_ui": true
+    },
+    {
+      "file": "src/ui/app.py",
+      "term": "product_id",
+      "runtime_ui": true
+    }
+  ]
+}

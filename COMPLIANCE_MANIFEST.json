@@ -1,0 +1,24 @@
+{
+  "project": "Finance Stage AI Financial Decision Support",
+  "requirements_alignment": "Project Overview scope implemented",
+  "agents": [
+    "Payment Risk Assessment Agent",
+    "Cashflow / Revenue Forecast Agent"
+  ],
+  "capabilities": [
+    "invoice late-payment probability",
+    "risk categories",
+    "customer history engineering",
+    "model-based importance",
+    "managerial recommendations",
+    "revenue forecasting",
+    "cash inflow/outflow and net cashflow support",
+    "anomaly and decline detection",
+    "financial alerts",
+    "natural-language summaries",
+    "interactive Streamlit interface",
+    "model metrics and registry",
+    "technical and experimental documentation"
+  ],
+  "note": "Final acceptance still depends on running the supplied checklist in the deployment environment."
+}

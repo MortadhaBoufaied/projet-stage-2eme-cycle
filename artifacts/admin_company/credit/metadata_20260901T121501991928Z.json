@@ -1,0 +1,63 @@
+{
+  "metrics": {
+    "ROC_AUC": 0.7825,
+    "PR_AUC": 0.5565,
+    "Accuracy": 0.817,
+    "F1_Score": 0.4628,
+    "Precision": 0.6597,
+    "Recall": 0.3564,
+    "Confusion_Matrix": [
+      [
+        4429,
+        244
+      ],
+      [
+        854,
+        473
+      ]
+    ],
+    "n_test": 6000,
+    "split": "stratified random holdout",
+    "train_rows": 24000,
+    "test_rows": 6000
+  },
+  "mapping": {
+    "client_id": "",
+    "LIMIT_BAL": "LIMIT_BAL",
+    "AGE": "AGE",
+    "EDUCATION": "EDUCATION",
+    "MARRIAGE": "MARRIAGE",
+    "PAY_0": "PAY_0",
+    "PAY_1": "PAY_6",
+    "PAY_2": "PAY_2",
+    "PAY_3": "PAY_3",
+    "PAY_4": "PAY_4",
+    "PAY_5": "PAY_5",
+    "PAY_6": "PAY_AMT6",
+    "BILL_AMT1": "BILL_AMT1",
+    "BILL_AMT2": "BILL_AMT2",
+    "BILL_AMT3": "BILL_AMT3",
+    "BILL_AMT4": "BILL_AMT4",
+    "BILL_AMT5": "BILL_AMT5",
+    "BILL_AMT6": "BILL_AMT6",
+    "PAY_AMT1": "PAY_AMT1",
+    "PAY_AMT2": "PAY_AMT2",
+    "PAY_AMT3": "PAY_AMT3",
+    "PAY_AMT4": "PAY_AMT4",
+    "PAY_AMT5": "PAY_AMT5",
+    "PAY_AMT6": "SEX",
+    "default_next_month": "default.payment.next.month"
+  },
+  "data_summary": {
+    "rows": 30000,
+    "columns": 25,
+    "duplicate_rows": 0,
+    "missing_cells": 0,
+    "missing_percent": 0.0
+  },
+  "company_id": "admin_company",
+  "task": "credit",
+  "model_file": "model_20260901T121501991928Z.joblib",
+  "version": "20260901T121501991928Z",
+  "saved_at_utc": "20260901T121501991928Z"
+}
